@@ -12,14 +12,7 @@
     "192": "icons/favicon-192x192.png",
     "512": "icons/favicon-512x512.png"
   },
-  "permissions": [
-    "<all_urls>",
-    "activeTab",
-    "downloads",
-    "storage",
-    "contextMenus",
-    "clipboardWrite"
-  ],
+  "permissions": ["<all_urls>", "activeTab", "downloads", "storage", "contextMenus", "clipboardWrite"],
   "browser_action": {
     "default_title": "MarkDownload",
     "default_popup": "popup/popup.html",
@@ -40,6 +33,7 @@
       "/background/Readability.js",
       "shared/context-menus.js",
       "shared/default-options.js",
+      "shared/image-handler.js",
       "background/background.js"
     ]
   },
@@ -85,12 +79,18 @@
     "copy_tab_to_obsidian": {
       "description": "Copy current tab as Markdown to Obsidian"
     }
-    
   },
   "browser_specific_settings": {
     "gecko": {
       "id": "{1c5e4c6f-5530-49a3-b216-31ce7d744db0}",
       "strict_min_version": "65.0"
     }
-  }
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["browser-polyfill.min.js", "shared/image-handler.js", "contentScript/contentScript.js"],
+      "run_at": "document_idle"
+    }
+  ]
 }
