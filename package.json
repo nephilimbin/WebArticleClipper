@@ -1,0 +1,28 @@
+{
+  "name": "markdownload",
+  "version": "3.4.0",
+  "description": "A browser extension to clip websites and download them as Markdown files",
+  "scripts": {
+    "npminstall": "npm install",
+    "build": "web-ext build --source-dir src",
+    "start:firefoxdeveloper": "web-ext run --source-dir src -f firefoxdeveloperedition -u https://en.wikipedia.org/wiki/Special:Random --bc",
+    "start:chromedevwin": "web-ext run --source-dir src -t chromium --chromium-binary \"C:\\Program Files\\Google\\Chrome Dev\\Application\\chrome.exe\" -u https://en.wikipedia.org/wiki/Special:Random --bc",
+    "start:chromemac": "web-ext run --source-dir src -t chromium --chromium-binary \"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome\" --bc",
+    "start:firefoxmac": "web-ext run --source-dir src -f firefox --bc",
+    "start:waveboxwin": "web-ext run --source-dir src -t chromium --chromium-binary %localappdata%/WaveboxApp/Application/wavebox.exe",
+    "start:androidwin11": "adb connect 127.0.0.1:58526 && web-ext run --source-dir src -t firefox-android --adb-device 127.0.0.1:58526 --firefox-apk org.mozilla.fenix",
+    "dev:chrome": "web-ext run --source-dir src -t chromium --browser-console",
+    "dev:firefox": "web-ext run --source-dir src -t firefox --browser-console",
+    "lint": "web-ext lint --source-dir src",
+    "test": "web-ext lint --source-dir src && npm run build"
+  },
+  "devDependencies": {
+    "web-ext": "^7.4.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/markdownload.git"
+  },
+  "author": "Gordon Pedsersen",
+  "license": "MIT"
+}
