@@ -21,6 +21,12 @@
   - 支持批量下载图片
   - 添加 base64 编码支持
 
+### Changed
+- 优化 MathJax 处理方式
+  - 将 pageContext.js 内容内联到 contentScript.js
+  - 移除外部脚本加载机制
+  - 改进代码注入方式
+
 ### Fixed
 - Fixed project structure to properly handle web-ext commands
 - Updated package.json scripts to correctly reference source directory
@@ -34,6 +40,10 @@
   - 改进图片下载逻辑
   - 添加错误处理
   - 优化内存使用
+- 修复脚本加载失败问题
+  - 移除外部脚本依赖
+  - 优化代码注入时机
+  - 改进错误处理
 
 ## [3.4.0]
 - Initial version
