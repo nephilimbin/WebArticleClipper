@@ -13,6 +13,9 @@ TurndownService.prototype.defaultEscape = TurndownService.prototype.escape;
 
 // function to convert the article content to markdown using Turndown
 function turndown(content, options, article) {
+  console.log('Options in turndown:', options);
+  console.log('hidePictureMdUrl value in turndown:', options.hidePictureMdUrl);
+
   if (options.turndownEscape) TurndownService.prototype.escape = TurndownService.prototype.defaultEscape;
   else TurndownService.prototype.escape = (s) => s;
 
@@ -28,6 +31,13 @@ function turndown(content, options, article) {
     filter: function (node, tdopts) {
       // if we're looking at an img node with a src
       if (node.nodeName == 'IMG' && node.getAttribute('src')) {
+        console.log('Processing image node, hidePictureMdUrl:', options.hidePictureMdUrl);
+        // 如果启用了隐藏图片URL，直接过滤掉图片节点
+        if (options.hidePictureMdUrl) {
+          console.log('Filtering out image node due to hidePictureMdUrl');
+          return true;
+        }
+
         // get the original src
         let src = node.getAttribute('src');
         // set the new src
@@ -49,54 +59,27 @@ function turndown(content, options, article) {
             // add it to the list of images to download later
             imageList[src] = imageFilename;
           }
-          // check if we're doing an obsidian style link
-          const obsidianLink = options.imageStyle.startsWith('obsidian');
-          // figure out the (local) src of the image
-          const localSrc =
-            options.imageStyle === 'obsidian-nofolder'
-              ? // if using "nofolder" then we just need the filename, no folder
-                imageFilename.substring(imageFilename.lastIndexOf('/') + 1)
-              : // otherwise we may need to modify the filename to uri encode parts for a pure markdown link
-                imageFilename
-                  .split('/')
-                  .map((s) => (obsidianLink ? s : encodeURI(s)))
-                  .join('/');
-
-          // set the new src attribute to be the local filename
-          if (options.imageStyle != 'originalSource' && options.imageStyle != 'base64') node.setAttribute('src', localSrc);
-          // pass the filter if we're making an obsidian link (or stripping links)
-          return true;
-        } else return true;
+          // if we're using the downloads API, we'll handle this in the background page
+          if (options.downloadMode == 'downloadsApi') {
+            // set the src to what the filename will be
+            node.setAttribute('src', imageList[src]);
+          }
+        }
       }
-      // don't pass the filter, just output a normal markdown link
-      return false;
+      return node.nodeName === 'IMG';
     },
     replacement: function (content, node, tdopts) {
-      // if we're stripping images, output nothing
-      if (options.imageStyle == 'noImage') return '';
-      // if this is an obsidian link, so output that
-      else if (options.imageStyle.startsWith('obsidian')) return `![[${node.getAttribute('src')}]]`;
-      // otherwise, output the normal markdown link
-      else {
-        var alt = cleanAttribute(node.getAttribute('alt'));
-        var src = node.getAttribute('src') || '';
-        var title = cleanAttribute(node.getAttribute('title'));
-        var titlePart = title ? ' "' + title + '"' : '';
-        if (options.imageRefStyle == 'referenced') {
-          var id = this.references.length + 1;
-          this.references.push('[fig' + id + ']: ' + src + titlePart);
-          return '![' + alt + '][fig' + id + ']';
-        } else return src ? '![' + alt + ']' + '(' + src + titlePart + ')' : '';
+      console.log('Replacing image node, hidePictureMdUrl:', options.hidePictureMdUrl);
+      // 如果启用了隐藏图片URL，返回空字符串
+      if (options.hidePictureMdUrl) {
+        console.log('Returning empty string for image due to hidePictureMdUrl');
+        return '';
       }
-    },
-    references: [],
-    append: function (options) {
-      var references = '';
-      if (this.references.length) {
-        references = '\n\n' + this.references.join('\n') + '\n\n';
-        this.references = []; // Reset references
-      }
-      return references;
+      var alt = node.alt || '';
+      var src = node.getAttribute('src') || '';
+      var title = node.title || '';
+      var titlePart = title ? ' "' + title + '"' : '';
+      return src ? '![' + alt + ']' + '(' + src + titlePart + ')' : '';
     },
   });
 
@@ -105,18 +88,50 @@ function turndown(content, options, article) {
     filter: (node, tdopts) => {
       // check that this is indeed a link
       if (node.nodeName == 'A' && node.getAttribute('href')) {
+        // 检查是否包含图片
+        const hasImage = node.querySelector('img');
+        if (hasImage && options.hidePictureMdUrl) {
+          return true;
+        }
+
         // get the href
         const href = node.getAttribute('href');
         // set the new href
         node.setAttribute('href', validateUri(href, article.baseURI));
+
         // if we are to strip links, the filter needs to pass
         return options.linkStyle == 'stripLinks';
       }
       // we're not passing the filter, just do the normal thing.
       return false;
     },
-    // if the filter passes, we're stripping links, so just return the content
-    replacement: (content, node, tdopts) => content,
+    replacement: (content, node, tdopts) => {
+      // 如果是包含图片的链接且启用了hidePictureMdUrl，返回空字符串
+      const hasImage = node.querySelector('img');
+      if (hasImage && options.hidePictureMdUrl) {
+        return '';
+      }
+      // 如果是包含图片的链接，直接返回图片的 Markdown
+      if (hasImage) {
+        const img = node.querySelector('img');
+        const alt = img.alt || '';
+        const href = validateUri(node.getAttribute('href'), article.baseURI);
+        const title = img.title || '';
+        const titlePart = title ? ' "' + title + '"' : '';
+        return '![' + alt + '](' + href + titlePart + ')';
+      }
+      // 如果是普通链接且设置了stripLinks
+      if (options.linkStyle == 'stripLinks') {
+        return content;
+      }
+      // 默认返回带链接的内容
+      var href = node.getAttribute('href');
+      var title = node.title ? ' "' + node.title + '"' : '';
+      if (!content || content.trim() === '') {
+        content = href;
+      }
+      return '[' + content + '](' + href + title + ')';
+    },
   });
 
   // handle multiple lines math
@@ -182,6 +197,7 @@ function turndown(content, options, article) {
   });
 
   let markdown = options.frontmatter + turndownService.turndown(content) + options.backmatter;
+  console.log('Final markdown:', markdown);
 
   // strip out non-printing special characters which CodeMirror displays as a red dot
   // see: https://codemirror.net/doc/manual.html#option_specialChars
@@ -308,6 +324,9 @@ function textReplace(string, article, disallowedChars = null) {
 // function to convert an article info object into markdown
 async function convertArticleToMarkdown(article, downloadImages = null) {
   const options = await getOptions();
+  console.log('Options in convertArticleToMarkdown:', options);
+  console.log('hidePictureMdUrl value in convertArticleToMarkdown:', options.hidePictureMdUrl);
+
   if (downloadImages != null) {
     options.downloadImages = downloadImages;
   }
@@ -326,6 +345,8 @@ async function convertArticleToMarkdown(article, downloadImages = null) {
     .join('/');
 
   let result = turndown(article.content, options, article);
+  console.log('Markdown result:', result);
+
   if (options.downloadImages && options.downloadMode == 'downloadsApi') {
     // pre-download the images
     result = await preDownloadImages(result.imageList, result.markdown);
@@ -498,6 +519,10 @@ async function notify(message) {
   const options = await this.getOptions();
   // message for initial clipping of the dom
   if (message.type == 'clip') {
+    console.log('Received clip message with options:', message);
+    console.log('hidePictureMdUrl value from message:', message.hidePictureMdUrl);
+    console.log('hidePictureMdUrl value from storage:', options.hidePictureMdUrl);
+
     // get the article info from the passed in dom
     const article = await getArticleFromDom(message.dom);
 

@@ -1,19 +1,19 @@
 // these are the default options
 const defaultOptions = {
-  headingStyle: "atx",
-  hr: "___",
-  bulletListMarker: "-",
-  codeBlockStyle: "fenced",
-  fence: "```",
-  emDelimiter: "_",
-  strongDelimiter: "**",
-  linkStyle: "inlined",
-  linkReferenceStyle: "full",
-  imageStyle: "markdown",
-  imageRefStyle: "inlined",
-  frontmatter: "---\ncreated: {date:YYYY-MM-DDTHH:mm:ss} (UTC {date:Z})\ntags: [{keywords}]\nsource: {baseURI}\nauthor: {byline}\n---\n\n# {pageTitle}\n\n> ## Excerpt\n> {excerpt}\n\n---",
-  backmatter: "",
-  title: "{pageTitle}",
+  headingStyle: 'atx',
+  hr: '___',
+  bulletListMarker: '-',
+  codeBlockStyle: 'fenced',
+  fence: '```',
+  emDelimiter: '_',
+  strongDelimiter: '**',
+  linkStyle: 'inlined',
+  linkReferenceStyle: 'full',
+  imageStyle: 'markdown',
+  imageRefStyle: 'inlined',
+  frontmatter: '---\ncreated: {date:YYYY-MM-DDTHH:mm:ss} (UTC {date:Z})\ntags: [{keywords}]\nsource: {baseURI}\nauthor: {byline}\n---\n\n# {pageTitle}\n\n> ## Excerpt\n> {excerpt}\n\n---',
+  backmatter: '',
+  title: '{pageTitle}',
   includeTemplate: false,
   saveAs: false,
   downloadImages: false,
@@ -24,9 +24,10 @@ const defaultOptions = {
   turndownEscape: true,
   contextMenus: true,
   obsidianIntegration: false,
-  obsidianVault: "",
-  obsidianFolder: "",
-}
+  obsidianVault: '',
+  obsidianFolder: '',
+  hidePictureMdUrl: false,
+};
 
 // function to get the options from storage and substitute default options if it fails
 async function getOptions() {

@@ -6,7 +6,7 @@
 - Added web-ext-config.js for better build configuration
 - Added Mac-specific test scripts for Chrome and Firefox
 - Added new dev commands for easier development
-- Updated test URLs to target specific GitHub repository
+- Added test URLs to target specific GitHub repository
 - 新增图片处理模块 (image-handler.js)
   - 支持安全的图片下载功能
   - 实现图片类型验证
@@ -20,6 +20,10 @@
   - 改进错误处理和日志记录
   - 支持批量下载图片
   - 添加 base64 编码支持
+- 新增隐藏图片URL功能
+  - 添加 Hide picture md url 选项
+  - 支持在预览和下载时隐藏图片链接
+  - 默认不隐藏图片链接
 
 ### Changed
 - 优化 MathJax 处理方式
