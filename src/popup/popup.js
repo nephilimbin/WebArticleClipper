@@ -127,6 +127,8 @@ const clipSite = (id) => {
         return browser.storage.sync
           .get(defaultOptions)
           .then((options) => {
+            // 确保所有选项都有默认值
+            options = { ...defaultOptions, ...options };
             console.log('Options from storage:', options);
             console.log('hidePictureMdUrl value:', options.hidePictureMdUrl);
             browser.runtime.sendMessage({

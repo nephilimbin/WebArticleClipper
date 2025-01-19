@@ -31,23 +31,17 @@ function turndown(content, options, article) {
     filter: function (node, tdopts) {
       // if we're looking at an img node with a src
       if (node.nodeName == 'IMG' && node.getAttribute('src')) {
-        console.log('Processing image node, hidePictureMdUrl:', options.hidePictureMdUrl);
-        // 如果启用了隐藏图片URL，直接过滤掉图片节点
-        if (options.hidePictureMdUrl) {
-          console.log('Filtering out image node due to hidePictureMdUrl');
-          return true;
-        }
-
         // get the original src
         let src = node.getAttribute('src');
         // set the new src
-        node.setAttribute('src', validateUri(src, article.baseURI));
+        const validatedSrc = validateUri(src, article.baseURI);
+        node.setAttribute('src', validatedSrc);
 
-        // if we're downloading images, there's more to do.
+        // 总是处理图片下载，不受 hidePictureMdUrl 影响
         if (options.downloadImages) {
           // generate a file name for the image
-          let imageFilename = getImageFilename(src, options, false);
-          if (!imageList[src] || imageList[src] != imageFilename) {
+          let imageFilename = getImageFilename(validatedSrc, options, false);
+          if (!imageList[validatedSrc] || imageList[validatedSrc] != imageFilename) {
             // if the imageList already contains this file, add a number to differentiate
             let i = 1;
             while (Object.values(imageList).includes(imageFilename)) {
@@ -57,22 +51,20 @@ function turndown(content, options, article) {
               imageFilename = parts.join('.');
             }
             // add it to the list of images to download later
-            imageList[src] = imageFilename;
+            imageList[validatedSrc] = imageFilename;
           }
-          // if we're using the downloads API, we'll handle this in the background page
-          if (options.downloadMode == 'downloadsApi') {
-            // set the src to what the filename will be
-            node.setAttribute('src', imageList[src]);
-          }
+        }
+
+        // 如果启用了隐藏图片URL，返回true让turndown处理
+        if (options.hidePictureMdUrl) {
+          return true;
         }
       }
       return node.nodeName === 'IMG';
     },
     replacement: function (content, node, tdopts) {
-      console.log('Replacing image node, hidePictureMdUrl:', options.hidePictureMdUrl);
       // 如果启用了隐藏图片URL，返回空字符串
       if (options.hidePictureMdUrl) {
-        console.log('Returning empty string for image due to hidePictureMdUrl');
         return '';
       }
       var alt = node.alt || '';
@@ -88,16 +80,37 @@ function turndown(content, options, article) {
     filter: (node, tdopts) => {
       // check that this is indeed a link
       if (node.nodeName == 'A' && node.getAttribute('href')) {
-        // 检查是否包含图片
-        const hasImage = node.querySelector('img');
-        if (hasImage && options.hidePictureMdUrl) {
-          return true;
-        }
-
         // get the href
         const href = node.getAttribute('href');
         // set the new href
-        node.setAttribute('href', validateUri(href, article.baseURI));
+        const validatedHref = validateUri(href, article.baseURI);
+        node.setAttribute('href', validatedHref);
+
+        // 检查是否包含图片
+        const img = node.querySelector('img');
+        if (img) {
+          // 总是处理图片下载，不受 hidePictureMdUrl 影响
+          const src = img.getAttribute('src');
+          if (options.downloadImages && src) {
+            const validatedSrc = validateUri(src, article.baseURI);
+            let imageFilename = getImageFilename(validatedSrc, options, false);
+            if (!imageList[validatedSrc] || imageList[validatedSrc] != imageFilename) {
+              let i = 1;
+              while (Object.values(imageList).includes(imageFilename)) {
+                const parts = imageFilename.split('.');
+                if (i == 1) parts.splice(parts.length - 1, 0, i++);
+                else parts.splice(parts.length - 2, 1, i++);
+                imageFilename = parts.join('.');
+              }
+              imageList[validatedSrc] = imageFilename;
+            }
+          }
+
+          // 如果启用了隐藏图片URL，返回true让turndown处理
+          if (options.hidePictureMdUrl) {
+            return true;
+          }
+        }
 
         // if we are to strip links, the filter needs to pass
         return options.linkStyle == 'stripLinks';
@@ -115,7 +128,7 @@ function turndown(content, options, article) {
       if (hasImage) {
         const img = node.querySelector('img');
         const alt = img.alt || '';
-        const href = validateUri(node.getAttribute('href'), article.baseURI);
+        const href = node.getAttribute('href');
         const title = img.title || '';
         const titlePart = title ? ' "' + title + '"' : '';
         return '![' + alt + '](' + href + titlePart + ')';
