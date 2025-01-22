@@ -1,23 +1,38 @@
-# Privacy Policy
+# 隐私政策
 
-This page is used to inform visitors regarding our policies with the collection, use, and disclosure of Personal Information if anyone
-using the MarkDownload browser extension (the Service).
+## 数据收集
+本扩展程序不会收集任何个人信息或使用数据。所有操作均在本地完成，不会向任何外部服务器发送数据。
 
-tl;dr: We don't collect anything. Any information we clip from websites remains on your machine.
+## 数据存储
+- 所有配置信息仅存储在浏览器本地存储中
+- 下载的文件直接保存到用户指定的本地位置
+- 不会在云端存储任何用户数据
 
-## Information Collection and Use
-This extension reads data on a website you are visiting when you click the button. The URL, metadata and content are clipped and fed
-through third-party javascript libraries to transofrm it into the Markdown you see in the preview.
+## 权限说明
+本扩展需要以下权限：
+- 访问网站内容：用于读取和转换页面内容
+- 下载管理：用于保存转换后的Markdown文件
+- 存储权限：用于保存用户配置
+- 剪贴板：用于复制Markdown内容
+- 标签页访问：用于实现"下载所有标签页"功能
 
-None of this data is collected or sent back to any server. Any files you download or text you copy from the extension remains on your
-machine and none of it is collected by me.
+## 图片处理
+- 所有图片下载均经过安全性验证
+- 支持文件大小限制
+- 实现了SVG安全性检查
+- 提供MIME类型验证
 
-The settings of the extension get stored in the browser's local storage and likewise are never collected or transmitted by me.
+## 安全措施
+- 所有网络请求使用HTTPS
+- 实现了内容安全策略(CSP)
+- 对用户输入进行安全过滤
+- 图片和链接经过安全性验证
 
-## Changes to This Privacy Policy
-I may update this Privacy Policy from time to time, for example if new features are developed which require data collection.
-Thus, it might be a good idea to review this page periodically for any changes. Any changes are effective immediately, as they are
-posted on this page. Editing this page constitutes a notification that the Privacy Policy has changed
+## 第三方服务
+本扩展不会与任何第三方服务共享数据。如果您启用了Obsidian集成，相关操作仍在本地完成。
 
-## Contact Me
-If you have any questions or suggestions about this Privacy Policy, do not hesitate to contact me.
+## 更新日志
+我们会在CHANGELOG.md中记录所有功能更新和安全改进。
+
+## 联系方式
+如果您对隐私政策有任何疑问，请通过GitHub Issues与我们联系。

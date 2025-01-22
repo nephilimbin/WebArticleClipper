@@ -1,8 +1,23 @@
-# MarkDownload User Guide
+# MarkDownload User Guide (Enhanced Version)
 ## Basic Usage
 Simply click the ![](src/icons/favicon-16x16.png) Markdown icon in the browser's extension area to show a popup containing the current website as Markdown. Here you can make quick edits to the content or the title before clicking the Download button at the bottom of the popup to download the content as a Markdown file. The file will be named according to the text in the title box at the top of the popover.
 
 Because the website is first passed through a readability process, you won't get extra content such as website navigation, footers and advertisements. However, please note that not all websites are created equal and as such some sites may not clip the content you expect.
+
+### Enhanced Features
+
+#### Improved Image Handling
+- **Secure Image Downloads**: All images are validated for security before downloading
+- **Type Validation**: Supports MIME type checking and file size limitations
+- **SVG Security**: Implements SVG content security checks
+- **Batch Processing**: Support for downloading multiple images simultaneously
+- **Base64 Support**: Handles base64 encoded images properly
+- **Hide Image URLs**: Option to hide image URLs in the markdown output
+
+#### MathJax Improvements
+- **Better Formula Rendering**: Optimized MathJax processing
+- **Inline Integration**: pageContext.js content now inline with contentScript.js
+- **Improved Initialization**: Better timing for MathJax initialization
 
 ### Clipping Selected Text
 If you select text on the page *and then* click the ![](src/icons/favicon-16x16.png) Markdown icon, you will have the option of clipping just the selected text, or the entire document. This is great for capturing small snippets of a website, or for websites whose main content may not clip properly.
@@ -221,6 +236,21 @@ Figure 1:
 By default, backslashes (`\`) are used to escape Markdown characters in the HTML input. This ensures that these characters are not interpreted as Markdown. For example, the contents of `<h1>1. Hello world</h1>` needs to be escaped to `1\. Hello world`, otherwise it will be interpreted as a list item rather than a heading.
 
 Disabling this option disables this escaping.
+
+### Image Processing Options
+- **Image Size Limit**: Set maximum file size for image downloads
+- **SVG Security Level**: Choose security level for SVG processing
+- **Hide Image URLs**: Toggle visibility of image URLs in markdown
+- **Batch Download Limit**: Set maximum number of simultaneous image downloads
+- **Image Processing Mode**: Choose between different image processing modes
+  - Standard: Basic image processing
+  - Enhanced: Additional security checks and optimizations
+  - Strict: Maximum security with additional validations
+
+### MathJax Options
+- **MathJax Processing**: Enable/disable MathJax processing
+- **Formula Display Style**: Choose between inline and display style for formulas
+- **Custom MathJax Configuration**: Advanced settings for MathJax processing
 
 ## Custom Text Substitutions
 For options such as the [Title Template](#Title%20Template), [Subfolder](#Subfolder), [Front/Back Templates](#Front%2FBack%20Templates) and [Image Filename Prefix](#Image%20Filename%20Prefix), you can specify text substitutions, based on the website metadata and/or the current date. The following options are available:

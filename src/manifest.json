@@ -1,9 +1,9 @@
 {
   "manifest_version": 2,
-  "name": "MarkDownload - Markdown Web Clipper",
-  "version": "3.4.0",
-  "author": "Gordon Pedsersen",
-  "description": "This extension works like a web clipper, but it downloads articles in markdown format.",
+  "name": "Markdown Web Clipper (Enhanced)",
+  "version": "3.5.0",
+  "author": "Gordon Pedsersen (Enhanced by zzb)",
+  "description": "This is an enhanced version of the original Markdown Web Clipper with improved image handling, MathJax support, and more features.",
   "icons": {
     "16": "icons/favicon-16x16.png",
     "32": "icons/favicon-32x32.png",

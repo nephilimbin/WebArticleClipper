@@ -1,24 +1,119 @@
-# MarkDownload - Markdown Web Clipper
+# MarkDownload - Markdown Web Clipper (Enhanced Version)
 
 [![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/deathau/markdownload?style=for-the-badge&sort=semver)](https://github.com/deathau/markdownload/releases/latest)
 
-This is an extension to clip websites and download them into a readable markdown file. Please keep in mind that it is not guaranteed to work on all websites.
+> **重要说明**：本项目是基于 [deathau/markdownload](https://github.com/deathau/markdownload) 的增强版本。我使用Cursor工具对原项目进行了bug修复和功能增强，以提供更好的用户体验。
+>
+> **主要改进**：
+> - 增强的图片处理功能
+> - 改进的MathJax支持
+> - 优化的代码结构
+> - 更多自定义选项
+>
+> **免责声明**：
+> - 本项目是一个独立的分支版本，与原作者无关
+> - 所有新增功能和修复均遵循原项目的开源协议
+> - 如有任何问题或建议，请在本项目的 Issues 中提出
+> - 原项目的所有权利归属于原作者
+
+This is an enhanced version of the extension to clip websites and download them into a readable markdown file. Please keep in mind that it is not guaranteed to work on all websites.
 
 To use this add-on, simply click the add-on icon while you are browsing the page you want to save offline. A popup will show the rendered markdown so you can make minor edits or copy the text, or you can click the download button to download an .md file.  
 Selecting text will allow you to download just the selected text
 
 See the [Markdownload User Guide](https://github.com/deathau/markdownload/blob/master/user-guide.md#markdownload-user-guide) for more details on the functionality of this extension
 
+# Features
+
+## Original Features
+- Convert web pages to clean, readable Markdown
+- Support for various Markdown flavors
+- Customizable templates
+- Obsidian integration
+- Multi-browser support
+
+## Enhanced Features
+- Enhanced Image Processing
+  - Secure image downloading
+  - Image type and MIME type validation
+  - File size limitations
+  - SVG security checks
+  - Batch download support
+  - Base64 encoding support
+- Improved MathJax Support
+  - Optimized formula rendering
+  - Better code injection
+- New Option to Hide Image URLs
+- Development Tools Improvements
+  - Better testing support
+  - Convenient development commands
+
 # Installation
-The extension is available for [Firefox](https://addons.mozilla.org/en-GB/firefox/addon/markdownload/), [Google Chrome](https://chrome.google.com/webstore/detail/markdownload-markdown-web/pcmpcfapbekmbjjkdalcgopdkipoggdi), [Microsoft Edge](https://microsoftedge.microsoft.com/addons/detail/hajanaajapkhaabfcofdjgjnlgkdkknm) and [Safari](https://apple.co/3tcU0pD).
+The extension is available for 
+[Firefox](https://addons.mozilla.org/en-GB/firefox/addon/markdownload/), 
+[Google Chrome](https://chrome.google.com/webstore/detail/markdownload-markdown-web/pcmpcfapbekmbjjkdalcgopdkipoggdi), 
+[Microsoft Edge](https://microsoftedge.microsoft.com/addons/detail/hajanaajapkhaabfcofdjgjnlgkdkknm) and [Safari](https://apple.co/3tcU0pD).
 
-[![](https://img.shields.io/chrome-web-store/v/pcmpcfapbekmbjjkdalcgopdkipoggdi.svg?logo=google-chrome&style=flat)](https://chrome.google.com/webstore/detail/markdownload-markdown-web/pcmpcfapbekmbjjkdalcgopdkipoggdi) [![](https://img.shields.io/chrome-web-store/rating/pcmpcfapbekmbjjkdalcgopdkipoggdi.svg?logo=google-chrome&style=flat)](https://chrome.google.com/webstore/detail/markdownload-markdown-web/pcmpcfapbekmbjjkdalcgopdkipoggdi) [![](https://img.shields.io/chrome-web-store/users/pcmpcfapbekmbjjkdalcgopdkipoggdi.svg?logo=google-chrome&style=flat)](https://chrome.google.com/webstore/detail/markdownload-markdown-web/pcmpcfapbekmbjjkdalcgopdkipoggdi)
 
-[![](https://img.shields.io/amo/v/markdownload.svg?logo=firefox&style=flat)](https://addons.mozilla.org/en-US/firefox/addon/markdownload/) [![](https://img.shields.io/amo/rating/markdownload.svg?logo=firefox&style=flat)](https://addons.mozilla.org/en-US/firefox/addon/markdownload/) [![](https://img.shields.io/amo/users/markdownload.svg?logo=firefox&style=flat)](https://addons.mozilla.org/en-US/firefox/addon/markdownload/)
 
-[![](https://img.shields.io/badge/dynamic/json?label=edge%20add-on&prefix=v&query=%24.version&url=https%3A%2F%2Fmicrosoftedge.microsoft.com%2Faddons%2Fgetproductdetailsbycrxid%2Fhajanaajapkhaabfcofdjgjnlgkdkknm&style=flat&logo=microsoft-edge)](https://microsoftedge.microsoft.com/addons/detail/hajanaajapkhaabfcofdjgjnlgkdkknm) [![](https://img.shields.io/badge/dynamic/json?label=rating&suffix=/5&query=%24.averageRating&url=https%3A%2F%2Fmicrosoftedge.microsoft.com%2Faddons%2Fgetproductdetailsbycrxid%2Fhajanaajapkhaabfcofdjgjnlgkdkknm&style=flat&logo=microsoft-edge)](https://microsoftedge.microsoft.com/addons/detail/hajanaajapkhaabfcofdjgjnlgkdkknm)
+# Local Development
 
-[![iTunes App Store](https://img.shields.io/itunes/v/1554029832?label=Safari&logo=safari&style=flat)](https://apple.co/3tcU0pD)
+## Prerequisites
+- Node.js (Latest LTS version recommended)
+- npm or yarn
+- Chrome, Firefox, or Edge browser for testing
+
+## Setup
+1. Clone the repository
+```bash
+git clone https://github.com/deathau/markdownload.git
+cd markdownload
+```
+
+2. Install dependencies
+```bash
+npm install
+```
+
+## Development Commands
+- Start development with Chrome:
+```bash
+npm run dev:chrome
+```
+
+- Start development with Firefox:
+```bash
+npm run dev:firefox
+```
+
+- Build for production:
+```bash
+npm run build
+```
+
+## Testing
+The extension can be tested locally using the following methods:
+
+### Chrome
+1. Open Chrome and navigate to `chrome://extensions/`
+2. Enable "Developer mode" in the top right
+3. Click "Load unpacked" and select the `dist` directory
+
+### Firefox
+1. Open Firefox and navigate to `about:debugging#/runtime/this-firefox`
+2. Click "Load Temporary Add-on"
+3. Select any file in the `dist` directory
+
+### Edge
+1. Open Edge and navigate to `edge://extensions/`
+2. Enable "Developer mode"
+3. Click "Load unpacked" and select the `dist` directory
+
+## Development Notes
+- The extension uses web-ext for development and testing
+- Configuration can be found in `web-ext-config.js`
+- Source files are in the `src` directory
+- Build output goes to the `dist` directory
 
 # Obsidian Integration
 
@@ -38,8 +133,6 @@ You need to do some configurations in order to use this integration.
 
 </details>
 
-
-
 # External Libraries
 It uses the following libraries:
 - [Readability.js](https://github.com/mozilla/readability) by Mozilla version [0.5.0](https://github.com/mozilla/readability/releases/tag/0.5.0). This library is also used for the Firefox Reader View and it simplifies the page so that only the important parts are clipped. (Licensed under Apache License Version 2.0)
@@ -57,33 +150,11 @@ It uses the following libraries:
 The Common Mark icon courtesy of https://github.com/dcurtis/markdown-mark
 
 ## Pricing
-This is an open-source extension I made *for fun*. Its intention is to be completely free.
-It's free on Firefox, Edge and Chrome (and other Chromium browsers),
-but unfortunately for Safari there is a yearly developer fee, so I've decided to
-charge a small price for the Safari version to help cover that cost.
-Alternately, you can become a GitHub Sponsor for as little as $2 per month and
-you can request a key for the Safari version.
-Also, even if you're using the free version and you absolutely *have* to
-send me money because you like it that much, feel free to throw some coins
-in my hat via the following:
+This is an open-source extension made *for fun*. Its intention is to be completely free.
+It's free on Firefox, Edge and Chrome (and other Chromium browsers).
+Due to the high costs associated with Apple's developer program, a Safari version is not currently available.
 
-[![GitHub Sponsors](https://img.shields.io/github/sponsors/deathau?style=social)](https://github.com/sponsors/deathau)
-[![Paypal](https://img.shields.io/badge/paypal-deathau-yellow?style=social&logo=paypal)](https://paypal.me/deathau)
+
 
 # Version History
-## 3.4.0
-- Fixed extra spaces in titles which could cause issues (thanks @rickdoesdev !)
-- Fixed an issue with image paths in some circumstances (thanks @rickdoesdev !)
-- Added parametersizations for "mixed-kebab" and "mixed_snake" which retain original casing but replace spaces (thanks @NSHenry !)
-  - Also added a special "obsidian-cal" parameterization which is the same as "mixed-kebab" with duplicate `-` removed for additional compatibility with the Obsidian Consistent Attachment Location plugin (thanks @NSHenry !)
-- Added lowecase and uppercase options to parameterizations (thanks @redxtech !)
-- Updated Turndown to v7.1.3 (thanks @WeHat !)
-- Updated Readability to v0.5.0 (thanks @WeHat !)
-- Fixed some issues with code block parsing and formatting (thanks @WeHat !)
-- Fixed an issue with some sites missing a proper title (thanks @WeHat !)
-- Fixed an issue with bad base urls causing issues with links in certain circumstances (thanks @WeHat !)
-- Fixed an issue with readability removing everything in certain circumstances (thanks @WeHat !)
-- Send properly configured title to the Obsidian integration (thanks @nekton39 !)
-- Updates to the README (thanks @2gn and @eugenesvk !)
-
-> Previous version history is recorded in [CHANGELOG.md](./CHANGELOG.md)
+See [CHANGELOG.md](./CHANGELOG.md) for detailed version history.
