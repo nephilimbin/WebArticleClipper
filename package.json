@@ -1,6 +1,6 @@
 {
   "name": "markdownload",
-  "version": "3.4.1",
+  "version": "3.5.0",
   "description": "A browser extension to clip websites and download them as Markdown files",
   "scripts": {
     "npminstall": "npm install",
