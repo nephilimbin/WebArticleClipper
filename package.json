@@ -14,7 +14,8 @@
     "dev:chrome": "web-ext run --source-dir src -t chromium --browser-console",
     "dev:firefox": "web-ext run --source-dir src -t firefox --browser-console",
     "lint": "web-ext lint --source-dir src",
-    "test": "web-ext lint --source-dir src && npm run build"
+    "test": "web-ext lint --source-dir src && npm run build",
+    "start:chrome": "web-ext run --source-dir src -t chromium --chromium-binary \"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\" --bc"
   },
   "devDependencies": {
     "web-ext": "^7.4.0"
