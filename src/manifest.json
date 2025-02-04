@@ -36,8 +36,7 @@
       "shared/default-options.js",
       "shared/image-handler.js",
       "service_worker/background.js"
-    ],
-    "service_worker": "background.js"
+    ]
   },
   "options_ui": {
     "page": "options/options.html",
