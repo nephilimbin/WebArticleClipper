@@ -656,7 +656,7 @@ async function ensureScripts(tabId) {
   // has been defined. If this is not the case, then we need to run
   // pageScraper.js to define function getSelectionAndDom.
   if (!results || results[0] !== true) {
-    await browser.tabs.executeScript(tabId, { file: '/contentScript/contentScript.js' });
+    await browser.tabs.executeScript(tabId, { file: '/content_scripts/content_script.js' });
   }
 }
 
@@ -1011,3 +1011,17 @@ if (!String.prototype.replaceAll) {
     return this.replace(new RegExp(str, 'g'), newStr);
   };
 }
+
+// 在Service Worker的install事件中添加self.skipWaiting()
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    self.skipWaiting() // 强制立即激活新Service Worker
+  );
+});
+
+// 在activate事件中添加clients.claim()
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    self.clients.claim() // 立即控制所有客户端
+  );
+});

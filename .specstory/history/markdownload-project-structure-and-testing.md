@@ -359,7 +359,7 @@ mkdir -p src/{background,content,popup,options}
     "storage"
   ],
   "background": {
-    "service_worker": "dist/background/index.js",
+    "service_worker": "dist/service_worker/index.js",
     "type": "module"
   },
   "content_scripts": [{
@@ -410,7 +410,7 @@ mkdir -p src/{background,content,popup,options} assets/icons
 
 2. 创建基础源文件：
 
-```typescript:src/background/index.ts
+```typescript:src/service_worker/index.ts
 chrome.runtime.onInstalled.addListener(() => {
   console.log('Extension installed');
 });
@@ -620,7 +620,7 @@ mv options/index.html ./
 .
 ├── dist/               # 编译后的JavaScript文件
 ├── src/               # 源代码
-│   ├── background/
+│   ├── service_worker/
 │   │   └── index.ts
 │   ├── content/
 │   │   └── index.ts

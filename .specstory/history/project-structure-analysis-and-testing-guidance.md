@@ -21,7 +21,7 @@ _**Assistant**_
 
 ## 核心目录
 /src
-├── background/           # 后台脚本
+├── service_worker/           # 后台脚本
 │   ├── apache-mime-types.js  # MIME类型处理
 │   ├── background.js         # 主后台逻辑
 │   ├── moment.min.js         # 时间处理库
@@ -36,7 +36,7 @@ _**Assistant**_
 │   └── popup.js            # 弹出页面逻辑
 ├── shared/              # 共享代码
 │   └── context-menus.js    # 右键菜单
-├── contentScript/       # 内容脚本
+├── content_script/       # 内容脚本
 ├── icons/              # 图标资源
 ├── options/            # 选项页面
 ├── browser-polyfill.min.js # 浏览器兼容层
@@ -806,7 +806,7 @@ _**Assistant**_
 
 ```javascript:src/shared/image-handler.js
 // 处理图片下载相关的功能
-import { mimedb } from '../background/apache-mime-types.js';
+import { mimedb } from '../service_worker/apache-mime-types.js';
 
 export async function downloadImage(imageUrl, filename, options = {}) {
   try {
@@ -869,7 +869,7 @@ export function sanitizeImageFilename(filename, options = {}) {
 
 2. 修改 background.js 中的图片下载逻辑：
 
-```javascript:src/background/background.js
+```javascript:src/service_worker/background.js
 import { downloadImage, getImageDataUrl, sanitizeImageFilename } from '../shared/image-handler.js';
 
 // 修改 preDownloadImages 函数
@@ -1028,7 +1028,7 @@ _**Assistant**_
 2. 我们需要加强以下几个方面的安全措施：
 
 ```javascript:src/shared/image-handler.js
-import { mimedb } from '../background/apache-mime-types.js';
+import { mimedb } from '../service_worker/apache-mime-types.js';
 
 // 添加安全的MIME类型白名单
 const SAFE_MIME_TYPES = {
@@ -1396,15 +1396,15 @@ _**Assistant**_
   "background": {
     "scripts": [
       "browser-polyfill.min.js",
-      "background/apache-mime-types.js",
-      "background/moment.min.js",
-      "background/turndown.js",
-      "background/turndown-plugin-gfm.js",
-      "/background/Readability.js",
+      "service_worker/apache-mime-types.js",
+      "service_worker/moment.min.js",
+      "service_worker/turndown.js",
+      "service_worker/turndown-plugin-gfm.js",
+      "/service_worker/Readability.js",
 +     "shared/image-handler.js",
       "shared/context-menus.js",
       "shared/default-options.js",
-      "background/background.js"
+      "service_worker/background.js"
     ]
   }
 }
@@ -1412,7 +1412,7 @@ _**Assistant**_
 
 3. 修改 background.js 中使用 ImageHandler 的部分：
 
-```diff:src/background/background.js
+```diff:src/service_worker/background.js
 - import { downloadImage, getImageDataUrl, sanitizeImageFilename } from '../shared/image-handler.js';
 
 async function preDownloadImages(imageList, markdown) {
@@ -1555,15 +1555,15 @@ _**Assistant**_
   "background": {
     "scripts": [
       "browser-polyfill.min.js",
-      "background/apache-mime-types.js",
-      "background/moment.min.js",
-      "background/turndown.js",
-      "background/turndown-plugin-gfm.js",
-      "/background/Readability.js",
+      "service_worker/apache-mime-types.js",
+      "service_worker/moment.min.js",
+      "service_worker/turndown.js",
+      "service_worker/turndown-plugin-gfm.js",
+      "/service_worker/Readability.js",
       "shared/image-handler.js",
       "shared/context-menus.js",
       "shared/default-options.js",
-      "background/background.js"
+      "service_worker/background.js"
     ],
 +   "persistent": true
   },
@@ -1662,7 +1662,7 @@ browser.storage.sync.get(defaultOptions).then(options => {
 +           file: "/browser-polyfill.min.js"
 +       }),
 +       browser.tabs.executeScript(id, {
-+           file: "/contentScript/contentScript.js"
++           file: "/content_script/content_script.js"
 +       })
 +   ]);
 }).then(() => {
@@ -1771,9 +1771,9 @@ console控制台显示以上异常。
 
 _**Assistant**_
 
-从控制台的错误信息来看，主要问题是 `contentScript.js` 无法正确加载。让我们检查一下相关的问题：
+从控制台的错误信息来看，主要问题是 `content_script.js` 无法正确加载。让我们检查一下相关的问题：
 
-1. 首先检查 contentScript.js 文件是否存在：
+1. 首先检查 content_script.js 文件是否存在：
 
 ---
 
@@ -1820,7 +1820,7 @@ _**Assistant**_
 +     "matches": ["<all_urls>"],
 +     "js": [
 +       "browser-polyfill.min.js",
-+       "contentScript/contentScript.js"
++       "content_script/content_script.js"
 +     ],
 +     "run_at": "document_end"
 +   }
@@ -1839,15 +1839,15 @@ _**Assistant**_
   "background": {
     "scripts": [
       "browser-polyfill.min.js",
-      "background/apache-mime-types.js",
-      "background/moment.min.js",
-      "background/turndown.js",
-      "background/turndown-plugin-gfm.js",
-      "/background/Readability.js",
+      "service_worker/apache-mime-types.js",
+      "service_worker/moment.min.js",
+      "service_worker/turndown.js",
+      "service_worker/turndown-plugin-gfm.js",
+      "/service_worker/Readability.js",
       "shared/image-handler.js",
       "shared/context-menus.js",
       "shared/default-options.js",
-      "background/background.js"
+      "service_worker/background.js"
     ],
     "persistent": true
   }
@@ -1897,7 +1897,7 @@ browser.storage.sync
 -       file: '/browser-polyfill.min.js',
 -     }),
 -     browser.tabs.executeScript(id, {
--       file: '/contentScript/contentScript.js',
+-       file: '/content_script/content_script.js',
 -     }),
 -   ]);
 +   // 检查内容脚本是否已注入
@@ -1905,7 +1905,7 @@ browser.storage.sync
 +     .catch(error => {
 +       console.log('内容脚本未注入，尝试注入...');
 +       return browser.tabs.executeScript(id, {
-+         file: '/contentScript/contentScript.js'
++         file: '/content_script/content_script.js'
 +       });
 +     });
   })
@@ -1953,10 +1953,10 @@ browser.storage.sync
 
 _**User**_
 
-contentScript.js:169 
+content_script.js:169 
  GET chrome-extension://invalid/ net::ERR_FAILED
-loadPageContextScript	@	contentScript.js:169
-(anonymous)	@	contentScript.js:170
+loadpage_contextScript	@	content_script.js:169
+(anonymous)	@	content_script.js:170
 
 仍然报错，是不是没有修复正确啊？
 
@@ -1964,7 +1964,7 @@ loadPageContextScript	@	contentScript.js:169
 
 _**Assistant**_
 
-看起来错误是在 `contentScript.js` 中加载 `pageContext.js` 时出现的。让我们检查一下这个问题：
+看起来错误是在 `content_script.js` 中加载 `page_context.js` 时出现的。让我们检查一下这个问题：
 
 ---
 
@@ -1978,7 +1978,7 @@ _**Assistant**_
 
 
 
-问题找到了。在 `contentScript.js` 中，`loadPageContextScript` 函数试图通过 `browser.runtime.getURL()` 加载 `pageContext.js`，但是路径可能不正确。让我们修复这个问题：
+问题找到了。在 `content_script.js` 中，`loadpage_contextScript` 函数试图通过 `browser.runtime.getURL()` 加载 `page_context.js`，但是路径可能不正确。让我们修复这个问题：
 
 1. 首先修改 manifest.json，添加 web_accessible_resources：
 
@@ -1989,14 +1989,14 @@ _**Assistant**_
   "version": "3.4.0",
   ...
 + "web_accessible_resources": [
-+   "contentScript/pageContext.js"
++   "content_script/page_context.js"
 + ],
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
       "js": [
         "browser-polyfill.min.js",
-        "contentScript/contentScript.js"
+        "content_script/content_script.js"
       ],
       "run_at": "document_end"
     }
@@ -2005,32 +2005,32 @@ _**Assistant**_
 }
 ```
 
-2. 修改 contentScript.js 中的加载逻辑：
+2. 修改 content_script.js 中的加载逻辑：
 
-```diff:src/contentScript/contentScript.js
-(function loadPageContextScript(){
+```diff:src/content_script/content_script.js
+(function loadpage_contextScript(){
 -   var s = document.createElement('script');
--   s.src = browser.runtime.getURL('contentScript/pageContext.js');
+-   s.src = browser.runtime.getURL('content_script/page_context.js');
 -   (document.head||document.documentElement).appendChild(s);
 +   try {
-+     const scriptURL = browser.runtime.getURL('contentScript/pageContext.js');
++     const scriptURL = browser.runtime.getURL('content_script/page_context.js');
 +     const script = document.createElement('script');
 +     script.src = scriptURL;
 +     script.onload = function() {
-+       console.log('pageContext.js 加载成功');
++       console.log('page_context.js 加载成功');
 +       this.remove(); // 加载后移除script标签
 +     };
 +     script.onerror = function(error) {
-+       console.error('pageContext.js 加载失败:', error);
++       console.error('page_context.js 加载失败:', error);
 +     };
 +     (document.head || document.documentElement).appendChild(script);
 +   } catch (error) {
-+     console.error('加载pageContext.js时出错:', error);
++     console.error('加载page_context.js时出错:', error);
 +   }
 })()
 ```
 
-3. 检查 pageContext.js 的内容：
+3. 检查 page_context.js 的内容：
 
 ---
 
@@ -2051,18 +2051,18 @@ _**Assistant**_
 
 ### Added
 ...
-+ 添加web_accessible_resources配置以支持pageContext.js访问
++ 添加web_accessible_resources配置以支持page_context.js访问
 + 改进脚本加载错误处理和日志记录
 
 ### Fixed
 ...
-+ 修复contentScript.js无法加载pageContext.js的问题
++ 修复content_script.js无法加载page_context.js的问题
 + 优化脚本加载机制和错误处理
 ```
 
 这些修改主要做了以下改进：
 
-1. 在 manifest.json 中添加了 web_accessible_resources，允许访问 pageContext.js
+1. 在 manifest.json 中添加了 web_accessible_resources，允许访问 page_context.js
 2. 改进了脚本加载逻辑，添加了错误处理和日志记录
 3. 优化了脚本加载的方式，确保正确加载和清理
 4. 添加了更详细的错误日志
@@ -2074,9 +2074,9 @@ _**Assistant**_
 _**User**_
 
 
-loadPageContextScript @ contentScript.js:177
-(anonymous) @ contentScript.js:181Understand this errorAI
-contentScript.js:175 pageContext.js 加载失败: Event {isTrusted: true, type: 'error', target: script, currentTarget: script, eventPhase: 2, …}
+loadpage_contextScript @ content_script.js:177
+(anonymous) @ content_script.js:181Understand this errorAI
+content_script.js:175 page_context.js 加载失败: Event {isTrusted: true, type: 'error', target: script, currentTarget: script, eventPhase: 2, …}
 
 出现了新的异常。
 
@@ -2084,7 +2084,7 @@ contentScript.js:175 pageContext.js 加载失败: Event {isTrusted: true, type:
 
 _**Assistant**_
 
-看起来 pageContext.js 的加载路径还是有问题。让我们修改一下加载方式：
+看起来 page_context.js 的加载路径还是有问题。让我们修改一下加载方式：
 
 1. 首先修改 manifest.json 中的 web_accessible_resources 配置：
 
@@ -2092,35 +2092,35 @@ _**Assistant**_
 {
   ...
   "web_accessible_resources": [
--   "contentScript/pageContext.js"
-+   "/contentScript/pageContext.js",
-+   "contentScript/*",
+-   "content_script/page_context.js"
++   "/content_script/page_context.js",
++   "content_script/*",
 +   "browser-polyfill.min.js"
   ],
   ...
 }
 ```
 
-2. 修改 contentScript.js 中的加载逻辑：
+2. 修改 content_script.js 中的加载逻辑：
 
-```diff:src/contentScript/contentScript.js
-(function loadPageContextScript() {
+```diff:src/content_script/content_script.js
+(function loadpage_contextScript() {
   try {
--   const scriptURL = browser.runtime.getURL('contentScript/pageContext.js');
-+   const scriptURL = browser.runtime.getURL('/contentScript/pageContext.js');
+-   const scriptURL = browser.runtime.getURL('content_script/page_context.js');
++   const scriptURL = browser.runtime.getURL('/content_script/page_context.js');
     const script = document.createElement('script');
     script.src = scriptURL;
 +   script.type = 'text/javascript';
     script.onload = function () {
-      console.log('pageContext.js 加载成功');
+      console.log('page_context.js 加载成功');
       this.remove(); // 加载后移除script标签
     };
     script.onerror = function (error) {
-      console.error('pageContext.js 加载失败:', error);
+      console.error('page_context.js 加载失败:', error);
 +     // 尝试使用备用路径
-+     const backupURL = browser.runtime.getURL('contentScript/pageContext.js');
++     const backupURL = browser.runtime.getURL('content_script/page_context.js');
 +     if (backupURL !== scriptURL) {
-+       console.log('尝试使用备用路径加载 pageContext.js');
++       console.log('尝试使用备用路径加载 page_context.js');
 +       script.src = backupURL;
 +     }
     };
@@ -2131,12 +2131,12 @@ _**Assistant**_
 +   
     (document.head || document.documentElement).appendChild(script);
   } catch (error) {
-    console.error('加载pageContext.js时出错:', error);
+    console.error('加载page_context.js时出错:', error);
   }
 })();
 ```
 
-3. 检查 pageContext.js 的位置是否正确：
+3. 检查 page_context.js 的位置是否正确：
 
 ---
 
@@ -2150,7 +2150,7 @@ _**Assistant**_
 
 
 
-4. 让我们也检查一下 pageContext.js 的内容和权限：
+4. 让我们也检查一下 page_context.js 的内容和权限：
 
 ---
 
@@ -2164,9 +2164,9 @@ _**Assistant**_
 
 
 
-5. 修改 pageContext.js 的内容，添加错误处理：
+5. 修改 page_context.js 的内容，添加错误处理：
 
-```diff:src/contentScript/pageContext.js
+```diff:src/content_script/page_context.js
 + (function() {
   function addLatexToMathJax3() {
     try {
@@ -2197,12 +2197,12 @@ _**Assistant**_
 
 ### Added
 ...
-+ 改进pageContext.js的加载机制和错误处理
++ 改进page_context.js的加载机制和错误处理
 + 添加脚本加载的调试信息
 
 ### Fixed
 ...
-+ 修复pageContext.js加载失败的问题
++ 修复page_context.js加载失败的问题
 + 优化脚本路径处理
 + 添加脚本加载的容错机制
 ```
@@ -2212,7 +2212,7 @@ _**Assistant**_
 1. 扩展了 web_accessible_resources 的配置，确保所有需要的脚本都可以被访问
 2. 改进了脚本加载逻辑，添加了备用路径机制
 3. 添加了更多的调试信息输出
-4. 优化了 pageContext.js 的内容，添加了错误处理和加载时机控制
+4. 优化了 page_context.js 的内容，添加了错误处理和加载时机控制
 5. 添加了 IIFE（立即执行函数表达式）包装，避免全局作用域污染
 
 请重新加载扩展并测试。如果还有问题，请查看控制台输出的调试信息，这将帮助我们更好地定位问题。
@@ -2221,15 +2221,15 @@ _**Assistant**_
 
 _**User**_
 
-尝试加载脚本: chrome-extension://jenlkonmlojkmpokkmpgafjggjjejokk/contentScript/pageContext.js
-contentScript.js:186 扩展ID: jenlkonmlojkmpokkmpgafjggjjejokk
+尝试加载脚本: chrome-extension://jenlkonmlojkmpokkmpgafjggjjejokk/content_script/page_context.js
+content_script.js:186 扩展ID: jenlkonmlojkmpokkmpgafjggjjejokk
 
-contentScript.js:187 
+content_script.js:187 
  GET chrome-extension://invalid/ net::ERR_FAILED
-loadPageContextScript	@	contentScript.js:187
-(anonymous)	@	contentScript.js:191
+loadpage_contextScript	@	content_script.js:187
+(anonymous)	@	content_script.js:191
 
-contentScript.js:176 pageContext.js 加载失败: Event {isTrusted: true, type: 'error', target: script, currentTarget: script, eventPhase: 2, …}
+content_script.js:176 page_context.js 加载失败: Event {isTrusted: true, type: 'error', target: script, currentTarget: script, eventPhase: 2, …}
 
 出现新的问题
 
@@ -2245,10 +2245,10 @@ _**Assistant**_
 {
   ...
   "web_accessible_resources": [
--   "/contentScript/pageContext.js",
--   "contentScript/*",
+-   "/content_script/page_context.js",
+-   "content_script/*",
 -   "browser-polyfill.min.js"
-+   "**/pageContext.js",
++   "**/page_context.js",
 +   "**/browser-polyfill.min.js"
   ],
   "content_scripts": [
@@ -2256,9 +2256,9 @@ _**Assistant**_
       "matches": ["<all_urls>"],
       "js": [
         "browser-polyfill.min.js",
--       "contentScript/contentScript.js"
-+       "contentScript/pageContext.js",
-+       "contentScript/contentScript.js"
+-       "content_script/content_script.js"
++       "content_script/page_context.js",
++       "content_script/content_script.js"
       ],
       "run_at": "document_end"
     }
@@ -2267,12 +2267,12 @@ _**Assistant**_
 }
 ```
 
-2. 修改 contentScript.js 中的加载逻辑：
+2. 修改 content_script.js 中的加载逻辑：
 
-```diff:src/contentScript/contentScript.js
-(function loadPageContextScript() {
+```diff:src/content_script/content_script.js
+(function loadpage_contextScript() {
   try {
--   const scriptURL = browser.runtime.getURL('/contentScript/pageContext.js');
+-   const scriptURL = browser.runtime.getURL('/content_script/page_context.js');
 +   // 直接在content script中执行MathJax相关的代码
 +   function addLatexToMathJax3() {
 +     try {
@@ -2310,15 +2310,15 @@ _**Assistant**_
 -   script.src = scriptURL;
 -   script.type = 'text/javascript';
 -   script.onload = function () {
--     console.log('pageContext.js 加载成功');
+-     console.log('page_context.js 加载成功');
 -     this.remove(); // 加载后移除script标签
 -   };
 -   script.onerror = function (error) {
--     console.error('pageContext.js 加载失败:', error);
+-     console.error('page_context.js 加载失败:', error);
 -     // 尝试使用备用路径
--     const backupURL = browser.runtime.getURL('contentScript/pageContext.js');
+-     const backupURL = browser.runtime.getURL('content_script/page_context.js');
 -     if (backupURL !== scriptURL) {
--       console.log('尝试使用备用路径加载 pageContext.js');
+-       console.log('尝试使用备用路径加载 page_context.js');
 -       script.src = backupURL;
 -     }
 -   };
@@ -2329,16 +2329,16 @@ _**Assistant**_
 -   
 -   (document.head || document.documentElement).appendChild(script);
   } catch (error) {
--   console.error('加载pageContext.js时出错:', error);
+-   console.error('加载page_context.js时出错:', error);
 +   console.error('MathJax处理初始化出错:', error);
   }
 })();
 ```
 
-3. 修改 pageContext.js 的内容（虽然我们现在不再使用它，但为了完整性保留）：
+3. 修改 page_context.js 的内容（虽然我们现在不再使用它，但为了完整性保留）：
 
-```javascript:src/contentScript/pageContext.js
-// 这个文件现在可以删除，因为我们已经将其功能集成到contentScript.js中
+```javascript:src/content_script/page_context.js
+// 这个文件现在可以删除，因为我们已经将其功能集成到content_script.js中
 // 如果将来需要添加更多页面上下文功能，可以重新启用这个文件
 ```
 
@@ -2356,12 +2356,12 @@ _**Assistant**_
 ...
 + 修复脚本加载问题
 + 优化MathJax处理方式
-+ 移除对pageContext.js的依赖
++ 移除对page_context.js的依赖
 ```
 
 这些修改主要做了以下改进：
 
-1. 不再尝试加载单独的 pageContext.js 文件
+1. 不再尝试加载单独的 page_context.js 文件
 2. 将 MathJax 处理逻辑直接集成到 content script 中
 3. 添加了 MathJax 加载检测机制
 4. 使用自定义事件来处理页面通信
@@ -2442,9 +2442,9 @@ const clipSite = (id) => {
 };
 ```
 
-2. 修改 contentScript.js 中的内容获取函数：
+2. 修改 content_script.js 中的内容获取函数：
 
-```diff:src/contentScript/contentScript.js
+```diff:src/content_script/content_script.js
 function getHTMLOfDocument() {
 + console.log('开始获取文档内容');
   // make sure a title tag exists so that pageTitle is not empty and
@@ -2511,8 +2511,8 @@ function getSelectionAndDom() {
       "matches": ["<all_urls>"],
       "js": [
         "browser-polyfill.min.js",
--       "contentScript/pageContext.js",
-        "contentScript/contentScript.js"
+-       "content_script/page_context.js",
+        "content_script/content_script.js"
       ],
 +     "run_at": "document_start",
 +     "all_frames": false
@@ -2522,9 +2522,9 @@ function getSelectionAndDom() {
 }
 ```
 
-4. 添加消息监听器到 contentScript.js：
+4. 添加消息监听器到 content_script.js：
 
-```diff:src/contentScript/contentScript.js
+```diff:src/content_script/content_script.js
 // 添加到文件末尾
 + // 监听来自popup的消息
 + browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -2601,7 +2601,7 @@ _**Assistant**_
       "js": [
 +       "browser-polyfill.min.js",
 +       "shared/default-options.js",
-        "contentScript/contentScript.js"
+        "content_script/content_script.js"
       ],
 -     "run_at": "document_start",
 +     "run_at": "document_idle",
@@ -2612,9 +2612,9 @@ _**Assistant**_
 }
 ```
 
-2. 修改 contentScript.js 中的消息监听器：
+2. 修改 content_script.js 中的消息监听器：
 
-```diff:src/contentScript/contentScript.js
+```diff:src/content_script/content_script.js
 // 监听来自popup的消息
 browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('Content script收到消息:', message);
@@ -2772,9 +2772,9 @@ _**Assistant**_
 
 让我们仔细检查一下代码，特别是图片下载相关的部分：
 
-1. 首先，我们需要修改 contentScript.js 中的内容获取逻辑：
+1. 首先，我们需要修改 content_script.js 中的内容获取逻辑：
 
-```diff:src/contentScript/contentScript.js
+```diff:src/content_script/content_script.js
 function getHTMLOfDocument() {
   console.log('开始获取文档内容');
   try {
@@ -2965,7 +2965,7 @@ function showError(err) {
       "js": [
         "browser-polyfill.min.js",
         "shared/default-options.js",
-        "contentScript/contentScript.js"
+        "content_script/content_script.js"
       ],
 -     "run_at": "document_idle",
 +     "run_at": "document_end",
@@ -3024,9 +3024,9 @@ _**Assistant**_
 
 这个错误是因为内容脚本在页面加载时就尝试建立连接，但此时后台脚本可能还没有准备好。让我们修改一下代码：
 
-1. 修改 contentScript.js 中的初始化逻辑：
+1. 修改 content_script.js 中的初始化逻辑：
 
-```diff:src/contentScript/contentScript.js
+```diff:src/content_script/content_script.js
 - // 通知扩展内容脚本已加载
 - browser.runtime
 -   .sendMessage({
@@ -3089,7 +3089,7 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
       "js": [
         "browser-polyfill.min.js",
         "shared/default-options.js",
-        "contentScript/contentScript.js"
+        "content_script/content_script.js"
       ],
 -     "run_at": "document_end",
 +     "run_at": "document_idle",
@@ -3148,9 +3148,9 @@ _**Assistant**_
 
 我来帮你解决这些问题。
 
-1. 首先修复 MathJax 相关的错误。这个错误是因为在页面没有加载 MathJax 时尝试访问它导致的。让我们修改 `pageContext.js`:
+1. 首先修复 MathJax 相关的错误。这个错误是因为在页面没有加载 MathJax 时尝试访问它导致的。让我们修改 `page_context.js`:
 
-```javascript:src/contentScript/pageContext.js
+```javascript:src/content_script/page_context.js
 function addLatexToMathJax3() {
   // 检查 window.MathJax 是否存在
   if (typeof window.MathJax === 'undefined') {
@@ -3319,15 +3319,15 @@ if (typeof module !== 'undefined' && module.exports) {
   "background": {
     "scripts": [
       "browser-polyfill.min.js",
-      "background/apache-mime-types.js",
-      "background/moment.min.js",
-      "background/turndown.js",
-      "background/turndown-plugin-gfm.js",
-      "/background/Readability.js",
+      "service_worker/apache-mime-types.js",
+      "service_worker/moment.min.js",
+      "service_worker/turndown.js",
+      "service_worker/turndown-plugin-gfm.js",
+      "/service_worker/Readability.js",
       "shared/context-menus.js",
       "shared/default-options.js",
 +     "shared/image-handler.js",
-      "background/background.js"
+      "service_worker/background.js"
     ]
   }
 }
@@ -3493,9 +3493,9 @@ if (typeof module !== 'undefined' && module.exports) {
 }
 ```
 
-2. 修改 `contentScript.js` 中的图片下载函数：
+2. 修改 `content_script.js` 中的图片下载函数：
 
-```diff:src/contentScript/contentScript.js
+```diff:src/content_script/content_script.js
 - function downloadImage(filename, url) {
 + async function downloadImage(filename, url) {
 +   try {
@@ -3522,7 +3522,7 @@ if (typeof module !== 'undefined' && module.exports) {
 
 3. 修改 `background.js` 中的图片处理相关代码：
 
-```diff:src/background/background.js
+```diff:src/service_worker/background.js
 async function preDownloadImages(imageList, markdown) {
   const options = await getOptions();
   let newImageList = {};
@@ -3563,7 +3563,7 @@ async function preDownloadImages(imageList, markdown) {
       "js": [
         "browser-polyfill.min.js",
 +       "shared/image-handler.js",
-        "contentScript/contentScript.js"
+        "content_script/content_script.js"
       ],
       "run_at": "document_idle"
     }
@@ -3608,10 +3608,10 @@ async function preDownloadImages(imageList, markdown) {
 
 _**User**_
 
-contentScript.js:147 
+content_script.js:147 
  GET chrome-extension://invalid/ net::ERR_FAILED
-loadPageContextScript	@	contentScript.js:147
-(anonymous)	@	contentScript.js:148
+loadpage_contextScript	@	content_script.js:147
+(anonymous)	@	content_script.js:148
 
 已经可以实现图片下载的功能了。且可以正常获取到网页的内容。
 但是在console控制台，当我点击该插件图标后，出现上面的异常反馈。
@@ -3621,7 +3621,7 @@ loadPageContextScript	@	contentScript.js:147
 
 _**Assistant**_
 
-这个错误是因为在 `contentScript.js` 中加载 `pageContext.js` 的方式有问题。我们需要在 `manifest.json` 中声明 `web_accessible_resources` 来允许访问扩展资源。让我们修复这个问题：
+这个错误是因为在 `content_script.js` 中加载 `page_context.js` 的方式有问题。我们需要在 `manifest.json` 中声明 `web_accessible_resources` 来允许访问扩展资源。让我们修复这个问题：
 
 1. 修改 `manifest.json`，添加 `web_accessible_resources` 配置：
 
@@ -3633,7 +3633,7 @@ _**Assistant**_
   ...
   "permissions": ["<all_urls>", "activeTab", "downloads", "storage", "contextMenus", "clipboardWrite"],
 + "web_accessible_resources": [
-+   "contentScript/pageContext.js"
++   "content_script/page_context.js"
 + ],
   "browser_action": {
     ...
@@ -3642,36 +3642,36 @@ _**Assistant**_
 }
 ```
 
-2. 修改 `contentScript.js` 中的加载脚本方法，添加错误处理：
+2. 修改 `content_script.js` 中的加载脚本方法，添加错误处理：
 
-```diff:src/contentScript/contentScript.js
-- (function loadPageContextScript() {
-+ async function loadPageContextScript() {
+```diff:src/content_script/content_script.js
+- (function loadpage_contextScript() {
++ async function loadpage_contextScript() {
 +   try {
-+     const scriptURL = browser.runtime.getURL('contentScript/pageContext.js');
-+     console.log('Loading pageContext.js from:', scriptURL);
++     const scriptURL = browser.runtime.getURL('content_script/page_context.js');
++     console.log('Loading page_context.js from:', scriptURL);
 + 
     var s = document.createElement('script');
 +     s.src = scriptURL;
 +     s.onload = () => {
-+       console.log('pageContext.js loaded successfully');
++       console.log('page_context.js loaded successfully');
 +       s.remove();  // 加载完成后移除script标签
 +     };
 +     s.onerror = (error) => {
-+       console.error('Error loading pageContext.js:', error);
++       console.error('Error loading page_context.js:', error);
 +     };
     (document.head || document.documentElement).appendChild(s);
 +   } catch (error) {
-+     console.error('Failed to load pageContext.js:', error);
++     console.error('Failed to load page_context.js:', error);
 +   }
 - })();
 + }
 + 
 + // 等待文档加载完成后再加载脚本
 + if (document.readyState === 'loading') {
-+   document.addEventListener('DOMContentLoaded', loadPageContextScript);
++   document.addEventListener('DOMContentLoaded', loadpage_contextScript);
 + } else {
-+   loadPageContextScript();
++   loadpage_contextScript();
 + }
 ```
 
@@ -3685,7 +3685,7 @@ _**Assistant**_
 
 ### Fixed
 ...
-+ 修复 pageContext.js 加载失败问题
++ 修复 page_context.js 加载失败问题
 +  - 添加 web_accessible_resources 配置
 +  - 改进脚本加载机制
 +  - 添加错误处理和日志记录
@@ -3693,7 +3693,7 @@ _**Assistant**_
 
 这些修改主要做了以下改进：
 
-1. 在 `manifest.json` 中添加了 `web_accessible_resources` 配置，允许访问 `pageContext.js`
+1. 在 `manifest.json` 中添加了 `web_accessible_resources` 配置，允许访问 `page_context.js`
 2. 改进了脚本加载机制：
    - 使用 `async/await` 处理异步加载
    - 添加了加载成功和失败的处理
@@ -3701,17 +3701,17 @@ _**Assistant**_
 3. 优化了脚本加载时机，确保在文档准备好后再加载
 4. 添加了脚本加载完成后的清理操作
 
-这些修改应该能解决 `pageContext.js` 加载失败的问题。请重新加载扩展并测试，控制台应该不会再出现这个错误了。如果还有其他问题，请告诉我。
+这些修改应该能解决 `page_context.js` 加载失败的问题。请重新加载扩展并测试，控制台应该不会再出现这个错误了。如果还有其他问题，请告诉我。
 
 ---
 
 _**User**_
 
-loadPageContextScript	@	contentScript.js:158
-(anonymous)	@	contentScript.js:168
+loadpage_contextScript	@	content_script.js:158
+(anonymous)	@	content_script.js:168
 
-	(anonymous)	@	contentScript.js:168
-contentScript.js:156 Error loading pageContext.js: 
+	(anonymous)	@	content_script.js:168
+content_script.js:156 Error loading page_context.js: 
 Event {isTrusted: true, type: 'error', target: script, currentTarget: script, eventPhase: 2, …}
 isTrusted
 : 
@@ -3763,44 +3763,44 @@ Event
 
 _**Assistant**_
 
-这个错误是因为 `pageContext.js` 的加载路径还是有问题。让我们修改一下加载脚本的方式：
+这个错误是因为 `page_context.js` 的加载路径还是有问题。让我们修改一下加载脚本的方式：
 
-1. 修改 `contentScript.js` 中的加载脚本方法：
+1. 修改 `content_script.js` 中的加载脚本方法：
 
-```diff:src/contentScript/contentScript.js
-async function loadPageContextScript() {
+```diff:src/content_script/content_script.js
+async function loadpage_contextScript() {
   try {
--   const scriptURL = browser.runtime.getURL('contentScript/pageContext.js');
-+   const scriptURL = browser.runtime.getURL('/contentScript/pageContext.js');
-    console.log('Loading pageContext.js from:', scriptURL);
+-   const scriptURL = browser.runtime.getURL('content_script/page_context.js');
++   const scriptURL = browser.runtime.getURL('/content_script/page_context.js');
+    console.log('Loading page_context.js from:', scriptURL);
 
     var s = document.createElement('script');
     s.src = scriptURL;
 +   s.type = 'text/javascript';
     s.onload = () => {
-      console.log('pageContext.js loaded successfully');
+      console.log('page_context.js loaded successfully');
       s.remove(); // 加载完成后移除script标签
     };
     s.onerror = (error) => {
--     console.error('Error loading pageContext.js:', error);
-+     console.error('Error loading pageContext.js from:', scriptURL, 'Error:', error);
+-     console.error('Error loading page_context.js:', error);
++     console.error('Error loading page_context.js from:', scriptURL, 'Error:', error);
     };
 -   (document.head || document.documentElement).appendChild(s);
 +   document.documentElement.appendChild(s);
   } catch (error) {
-    console.error('Failed to load pageContext.js:', error);
+    console.error('Failed to load page_context.js:', error);
   }
 }
 
 - // 等待文档加载完成后再加载脚本
 - if (document.readyState === 'loading') {
--   document.addEventListener('DOMContentLoaded', loadPageContextScript);
+-   document.addEventListener('DOMContentLoaded', loadpage_contextScript);
 - } else {
 + // 确保在文档完全加载后执行
 + if (document.readyState === 'complete') {
-   loadPageContextScript();
+   loadpage_contextScript();
 + } else {
-+   window.addEventListener('load', loadPageContextScript);
++   window.addEventListener('load', loadpage_contextScript);
 }
 ```
 
@@ -3810,10 +3810,10 @@ async function loadPageContextScript() {
 {
   ...
   "web_accessible_resources": [
--   "contentScript/pageContext.js"
-+   "/contentScript/pageContext.js",
-+   "contentScript/pageContext.js",
-+   "pageContext.js"
+-   "content_script/page_context.js"
++   "/content_script/page_context.js",
++   "content_script/page_context.js",
++   "page_context.js"
   ],
   ...
 }
@@ -3826,7 +3826,7 @@ async function loadPageContextScript() {
 
 ### Fixed
 ...
-+ 修复 pageContext.js 加载失败问题
++ 修复 page_context.js 加载失败问题
 +  - 修正脚本加载路径
 +  - 优化脚本加载时机
 +  - 改进错误处理和日志记录
@@ -3842,11 +3842,11 @@ async function loadPageContextScript() {
 5. 添加了脚本类型声明
 6. 改用 `documentElement.appendChild` 来添加脚本
 
-这些修改应该能解决 `pageContext.js` 加载失败的问题。请重新加载扩展并测试，如果还有其他问题，请告诉我。
+这些修改应该能解决 `page_context.js` 加载失败的问题。请重新加载扩展并测试，如果还有其他问题，请告诉我。
 
 另外，如果这个修改后还是有问题，我们可以考虑以下备选方案：
 
-1. 直接将 `pageContext.js` 的内容内联到 `contentScript.js` 中
+1. 直接将 `page_context.js` 的内容内联到 `content_script.js` 中
 2. 使用 `fetch` 加载脚本内容后通过 `eval` 执行
 3. 将脚本内容作为字符串注入到页面中
 
@@ -3856,12 +3856,12 @@ async function loadPageContextScript() {
 
 _**User**_
 
-contentScript.js:159 
+content_script.js:159 
  GET chrome-extension://invalid/ net::ERR_FAILED
-loadPageContextScript	@	contentScript.js:159
-(anonymous)	@	contentScript.js:167
+loadpage_contextScript	@	content_script.js:159
+(anonymous)	@	content_script.js:167
 
-contentScript.js:157 Error loading pageContext.js from: chrome-extension://jenlkonmlojkmpokkmpgafjggjjejokk/contentScript/pageContext.js Error: 
+content_script.js:157 Error loading page_context.js from: chrome-extension://jenlkonmlojkmpokkmpgafjggjjejokk/content_script/page_context.js Error: 
 Event {isTrusted: true, type: 'error', target: script, currentTarget: script, eventPhase: 2, …}
 isTrusted
 : 
@@ -3912,40 +3912,40 @@ Event
 
 _**Assistant**_
 
-让我们尝试一个不同的方案，直接将 `pageContext.js` 的内容内联到 `contentScript.js` 中，这样可以避免加载外部脚本的问题：
+让我们尝试一个不同的方案，直接将 `page_context.js` 的内容内联到 `content_script.js` 中，这样可以避免加载外部脚本的问题：
 
-1. 修改 `contentScript.js`：
+1. 修改 `content_script.js`：
 
-```diff:src/contentScript/contentScript.js
-- async function loadPageContextScript() {
+```diff:src/content_script/content_script.js
+- async function loadpage_contextScript() {
 -   try {
--     const scriptURL = browser.runtime.getURL('/contentScript/pageContext.js');
--     console.log('Loading pageContext.js from:', scriptURL);
+-     const scriptURL = browser.runtime.getURL('/content_script/page_context.js');
+-     console.log('Loading page_context.js from:', scriptURL);
 - 
 -     var s = document.createElement('script');
 -     s.src = scriptURL;
 -     s.type = 'text/javascript';
 -     s.onload = () => {
--       console.log('pageContext.js loaded successfully');
+-       console.log('page_context.js loaded successfully');
 -       s.remove(); // 加载完成后移除script标签
 -     };
 -     s.onerror = (error) => {
--       console.error('Error loading pageContext.js from:', scriptURL, 'Error:', error);
+-       console.error('Error loading page_context.js from:', scriptURL, 'Error:', error);
 -     };
 -     document.documentElement.appendChild(s);
 -   } catch (error) {
--     console.error('Failed to load pageContext.js:', error);
+-     console.error('Failed to load page_context.js:', error);
 -   }
 - }
 - 
 - // 确保在文档完全加载后执行
 - if (document.readyState === 'complete') {
--   loadPageContextScript();
+-   loadpage_contextScript();
 - } else {
--   window.addEventListener('load', loadPageContextScript);
+-   window.addEventListener('load', loadpage_contextScript);
 - }
 
-+ // 内联 pageContext.js 的功能
++ // 内联 page_context.js 的功能
 + function injectMathJaxScript() {
 +   const script = document.createElement('script');
 +   script.textContent = `
@@ -3998,9 +3998,9 @@ _**Assistant**_
 {
   ...
 - "web_accessible_resources": [
--   "/contentScript/pageContext.js",
--   "contentScript/pageContext.js",
--   "pageContext.js"
+-   "/content_script/page_context.js",
+-   "content_script/page_context.js",
+-   "page_context.js"
 - ],
   ...
 }
@@ -4013,7 +4013,7 @@ _**Assistant**_
 
 ### Changed
 + 优化 MathJax 处理方式
-+  - 将 pageContext.js 内容内联到 contentScript.js
++  - 将 page_context.js 内容内联到 content_script.js
 +  - 移除外部脚本加载机制
 +  - 改进代码注入方式
 
@@ -4028,7 +4028,7 @@ _**Assistant**_
 这些修改主要做了以下改进：
 
 1. 移除了外部脚本加载机制，避免加载失败的问题
-2. 将 `pageContext.js` 的功能直接内联到 `contentScript.js` 中
+2. 将 `page_context.js` 的功能直接内联到 `content_script.js` 中
 3. 使用更安全的代码注入方式
 4. 优化了代码执行时机
 5. 改进了错误处理和日志记录
@@ -4039,7 +4039,7 @@ _**Assistant**_
 
 _**User**_
 
-问题已经修复了，但是感觉获取内容比较慢，是不是因为pageContext的内容内联到contentScript的问题导致的，可不可以优化并提高一些获取的速度？
+问题已经修复了，但是感觉获取内容比较慢，是不是因为page_context的内容内联到content_script的问题导致的，可不可以优化并提高一些获取的速度？
 
 ---
 
@@ -4047,9 +4047,9 @@ _**Assistant**_
 
 让我们优化一下代码，提高内容获取的速度：
 
-1. 优化 `contentScript.js` 中的代码：
+1. 优化 `content_script.js` 中的代码：
 
-```diff:src/contentScript/contentScript.js
+```diff:src/content_script/content_script.js
 // 优化 getHTMLOfDocument 函数
 function getHTMLOfDocument() {
 +   // 创建一个轻量级的文档片段
@@ -4221,7 +4221,7 @@ _**Assistant**_
 
 我发现问题了，主要是在 `getHTMLOfDocument` 函数中的异步处理导致无法正确返回内容。让我们修复这个问题：
 
-```diff:src/contentScript/contentScript.js
+```diff:src/content_script/content_script.js
 - function getHTMLOfDocument() {
 + async function getHTMLOfDocument() {
   // 创建一个轻量级的文档片段
@@ -4394,8 +4394,8 @@ _**Assistant**_
 
 我发现问题了，是在 `injectMathJaxScript` 函数中的脚本注入方式有问题。让我们修复这个问题：
 
-```diff:src/contentScript/contentScript.js
-// 内联 pageContext.js 的功能
+```diff:src/content_script/content_script.js
+// 内联 page_context.js 的功能
 function injectMathJaxScript() {
   const script = document.createElement('script');
   script.textContent = `
@@ -4537,7 +4537,7 @@ _**Assistant**_
 
 让我们专注于优化内容获取的性能，同时保持代码的低耦合性。主要优化 `getHTMLOfDocument` 和 `removeHiddenNodes` 这两个核心函数：
 
-```diff:src/contentScript/contentScript.js
+```diff:src/content_script/content_script.js
 // 优化 removeHiddenNodes 函数
 function removeHiddenNodes(root) {
 -  let nodeIterator,
@@ -4637,10 +4637,10 @@ function getHTMLOfDocument() {
 
 _**User**_
 
-修改代码后，报错了异常：contentScript.js:27 Uncaught TypeError: root.getElementsByTagName is not a function
-    at removeHiddenNodes (contentScript.js:27:32)
-    at getHTMLOfDocument (contentScript.js:15:3)
-    at getSelectionAndDom (contentScript.js:68:10)
+修改代码后，报错了异常：content_script.js:27 Uncaught TypeError: root.getElementsByTagName is not a function
+    at removeHiddenNodes (content_script.js:27:32)
+    at getHTMLOfDocument (content_script.js:15:3)
+    at getSelectionAndDom (content_script.js:68:10)
     at <anonymous>:1:1
 
 ---
@@ -4649,7 +4649,7 @@ _**Assistant**_
 
 抱歉出现了这个错误。问题出在 `removeHiddenNodes` 函数中，因为 `DocumentFragment` 不支持 `getElementsByTagName` 方法。让我们修复这个问题：
 
-```diff:src/contentScript/contentScript.js
+```diff:src/content_script/content_script.js
 function removeHiddenNodes(root) {
   // 使用更高效的选择器直接查找需要移除的元素
   const hiddenElements = root.querySelectorAll('script, style, noscript, math, [hidden], [aria-hidden="true"]');
@@ -4716,9 +4716,9 @@ _**Assistant**_
 
 让我们恢复到之前正常工作的版本，然后重新分析性能优化的需求。
 
-首先恢复 `contentScript.js` 中的关键函数：
+首先恢复 `content_script.js` 中的关键函数：
 
-```javascript:src/contentScript/contentScript.js
+```javascript:src/content_script/content_script.js
 function getHTMLOfDocument() {
   return removeHiddenNodes(document.body.cloneNode(true)).innerHTML;
 }
@@ -4767,7 +4767,7 @@ function removeHiddenNodes(root) {
 
 3. 建议的优化步骤：
 
-```diff:src/contentScript/contentScript.js
+```diff:src/content_script/content_script.js
 + // 添加性能监控
 + function measurePerformance(name, fn) {
 +   const start = performance.now();
@@ -4899,7 +4899,7 @@ browser.storage.sync.get(defaultOptions).then(options => {
 
 3. 修改 `background.js` 中的 turndown 函数，添加图片处理逻辑：
 
-```diff:src/background/background.js
+```diff:src/service_worker/background.js
 function turndown(content, options, article) {
   if (options.turndownEscape) TurndownService.prototype.escape = TurndownService.prototype.defaultEscape;
   else TurndownService.prototype.escape = (s) => s;
@@ -5021,7 +5021,7 @@ _**Assistant**_
 
 我发现问题了，需要修改 `background.js` 中的图片处理逻辑。让我们修复这些问题：
 
-```diff:src/background/background.js
+```diff:src/service_worker/background.js
 function turndown(content, options, article) {
   if (options.turndownEscape) TurndownService.prototype.escape = TurndownService.prototype.defaultEscape;
   else TurndownService.prototype.escape = (s) => s;
@@ -5166,7 +5166,7 @@ _**Assistant**_
 
 我明白了问题所在。我们需要修改 `background.js` 中的图片处理逻辑，确保在选择隐藏图片链接时完全移除图片相关的 Markdown 内容：
 
-```diff:src/background/background.js
+```diff:src/service_worker/background.js
 function turndown(content, options, article) {
   if (options.turndownEscape) TurndownService.prototype.escape = TurndownService.prototype.defaultEscape;
   else TurndownService.prototype.escape = (s) => s;
@@ -5281,7 +5281,7 @@ _**Assistant**_
 
 1. 首先修改 `background.js` 中的 turndown 函数：
 
-```diff:src/background/background.js
+```diff:src/service_worker/background.js
 function turndown(content, options, article) {
   if (options.turndownEscape) TurndownService.prototype.escape = TurndownService.prototype.defaultEscape;
   else TurndownService.prototype.escape = (s) => s;
@@ -5424,7 +5424,7 @@ const toggleHidePictureMd = (options) => {
 
 4. 修改 `background.js` 中的 convertArticleToMarkdown 函数：
 
-```diff:src/background/background.js
+```diff:src/service_worker/background.js
 async function convertArticleToMarkdown(article, downloadImages = null) {
   const options = await getOptions();
   if (downloadImages != null) {

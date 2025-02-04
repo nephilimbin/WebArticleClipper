@@ -46,7 +46,7 @@ _**Assistant**_
 
 ### 优化
 - 优化 MathJax 处理方式
-  - 将 pageContext.js 内容内联到 contentScript.js
+  - 将 page_context.js 内容内联到 content_script.js
   - 移除外部脚本加载机制
   - 改进代码注入方式
 - 项目结构优化
@@ -497,7 +497,7 @@ Because the website is first passed through a readability process, you won't get
 
 #### MathJax Improvements
 - **Better Formula Rendering**: Optimized MathJax processing
-- **Inline Integration**: pageContext.js content now inline with contentScript.js
+- **Inline Integration**: page_context.js content now inline with content_script.js
 - **Improved Initialization**: Better timing for MathJax initialization
 
 // ... existing code ...

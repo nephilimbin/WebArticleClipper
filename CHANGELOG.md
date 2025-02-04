@@ -23,7 +23,7 @@
 
 ### 优化
 - 优化 MathJax 处理方式
-  - 将 pageContext.js 内容内联到 contentScript.js
+  - 将 page_context.js 内容内联到 content_script.js
   - 移除外部脚本加载机制
   - 改进代码注入方式
 - 项目结构优化

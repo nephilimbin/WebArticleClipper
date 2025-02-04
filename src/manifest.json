@@ -5,38 +5,39 @@
   "author": "Gordon Pedsersen (Enhanced by zzb)",
   "description": "This is an enhanced version of the original Markdown Web Clipper with improved image handling, MathJax support, and more features.",
   "icons": {
-    "16": "icons/icon-16x16.png",
-    "32": "icons/icon-32x32.png",
-    "48": "icons/icon-48x48.png",
-    "128": "icons/icon-128x128.png",
-    "192": "icons/icon-192x192.png",
-    "512": "icons/icon-512x512.png",
-    "1024": "icons/icon-1024x1024.png"
+    "16": "assets/icons/icon-16x16.png",
+    "32": "assets/icons/icon-32x32.png",
+    "48": "assets/icons/icon-48x48.png",
+    "128": "assets/icons/icon-128x128.png",
+    "192": "assets/icons/icon-192x192.png",
+    "512": "assets/icons/icon-512x512.png",
+    "1024": "assets/icons/icon-1024x1024.png"
   },
   "permissions": ["<all_urls>", "activeTab", "downloads", "storage", "contextMenus", "clipboardWrite"],
   "browser_action": {
     "default_title": "MarkDownload",
     "default_popup": "popup/popup.html",
     "default_icon": {
-      "16": "icons/icon-16x16.png",
-      "32": "icons/icon-32x32.png",
-      "48": "icons/icon-48x48.png",
-      "128": "icons/icon-128x128.png"
+      "16": "assets/icons/icon-16x16.png",
+      "32": "assets/icons/icon-32x32.png",
+      "48": "assets/icons/icon-48x48.png",
+      "128": "assets/icons/icon-128x128.png"
     }
   },
   "background": {
     "scripts": [
       "browser-polyfill.min.js",
-      "background/apache-mime-types.js",
-      "background/moment.min.js",
-      "background/turndown.js",
-      "background/turndown-plugin-gfm.js",
-      "/background/Readability.js",
+      "service_worker/apache-mime-types.js",
+      "service_worker/moment.min.js",
+      "service_worker/turndown.js",
+      "service_worker/turndown-plugin-gfm.js",
+      "service_worker/Readability.js",
       "shared/context-menus.js",
       "shared/default-options.js",
       "shared/image-handler.js",
-      "background/background.js"
-    ]
+      "service_worker/background.js"
+    ],
+    "service_worker": "background.js"
   },
   "options_ui": {
     "page": "options/options.html",
@@ -90,7 +91,7 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["browser-polyfill.min.js", "shared/image-handler.js", "contentScript/contentScript.js"],
+      "js": ["browser-polyfill.min.js", "shared/image-handler.js", "content_scripts/content_script.js"],
       "run_at": "document_idle"
     }
   ]

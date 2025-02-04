@@ -16,7 +16,7 @@ Because the website is first passed through a readability process, you won't get
 
 #### MathJax Improvements
 - **Better Formula Rendering**: Optimized MathJax processing
-- **Inline Integration**: pageContext.js content now inline with contentScript.js
+- **Inline Integration**: page_context.js content now inline with content_script.js
 - **Improved Initialization**: Better timing for MathJax initialization
 
 ### Clipping Selected Text

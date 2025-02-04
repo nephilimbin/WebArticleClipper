@@ -58,6 +58,11 @@ class ImageHandler {
    * @returns {Promise<Object>} 下载结果
    */
   static async downloadImages(imageList) {
+    // 添加Service Worker就绪检查
+    if (!navigator.serviceWorker?.controller) {
+      throw new Error('Service Worker not ready. Please try again.');
+    }
+
     const results = {};
 
     for (const [url, filename] of Object.entries(imageList)) {

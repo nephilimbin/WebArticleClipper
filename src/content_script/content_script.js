@@ -141,7 +141,7 @@ async function downloadImage(filename, url) {
   }
 }
 
-// 内联 pageContext.js 的功能
+// 内联 page_context.js 的功能
 function injectMathJaxScript() {
   const script = document.createElement('script');
   script.textContent = `

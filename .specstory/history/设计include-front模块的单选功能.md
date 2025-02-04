@@ -271,7 +271,7 @@ _**Assistant**_
 
 ### Changed
 - 优化 MathJax 处理方式
-  - 将 pageContext.js 内容内联到 contentScript.js
+  - 将 page_context.js 内容内联到 content_script.js
   - 移除外部脚本加载机制
   - 改进代码注入方式
 
@@ -2261,11 +2261,11 @@ npm test
 web-ext-artifacts/
 └── markdownload-[version].zip
     ├── manifest.json
-    ├── background/
+    ├── service_worker/
     ├── popup/
     ├── options/
     ├── shared/
-    ├── contentScript/
+    ├── content_script/
     ├── icons/
     └── browser-polyfill.min.js
 ```
@@ -2412,7 +2412,7 @@ _**Assistant**_
     }
   },
   "background": {
-    "service_worker": "background/service-worker.js",
+    "service_worker": "service_worker/service-worker.js",
     "type": "module"
   },
   "options_ui": {
@@ -2461,7 +2461,7 @@ _**Assistant**_
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["browser-polyfill.min.js", "shared/image-handler.js", "contentScript/contentScript.js"],
+      "js": ["browser-polyfill.min.js", "shared/image-handler.js", "content_script/content_script.js"],
       "run_at": "document_idle"
     }
   ]
@@ -2498,7 +2498,7 @@ _**Assistant**_
 ```
 
 4. background 脚本改为 service worker：
-需要创建新文件 `background/service-worker.js`，将原来的多个背景脚本合并到这个文件中：
+需要创建新文件 `service_worker/service-worker.js`，将原来的多个背景脚本合并到这个文件中：
 
 ---
 
@@ -2619,8 +2619,8 @@ _**Assistant**_
 主要的内容提取功能是通过 Mozilla 的 Readability 库来实现的。让我们看看核心实现：
 
 1. 主要文件：
-- `src/background/Readability.js` - Mozilla 的 Readability 库
-- `src/background/background.js` - 内容提取的实现代码
+- `src/service_worker/Readability.js` - Mozilla 的 Readability 库
+- `src/service_worker/background.js` - 内容提取的实现代码
 
 2. 内容提取流程：
 
@@ -2873,7 +2873,7 @@ _**Assistant**_
 
 1. 使用选择模式:
 ```javascript
-// contentScript.js 中的 getSelectionAndDom 函数
+// content_script.js 中的 getSelectionAndDom 函数
 function getSelectionAndDom() {
   return {
     selection: getHTMLOfSelection(), // 获取选中的内容

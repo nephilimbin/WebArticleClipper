@@ -197,7 +197,7 @@ browser.storage.sync
       })
       .then(() => {
         return browser.tabs.executeScript(id, {
-          file: '/contentScript/contentScript.js',
+          file: '/content_scripts/content_script.js',
         });
       })
       .then(() => {
@@ -276,3 +276,17 @@ function showError(err) {
   document.getElementById('spinner').style.display = 'none';
   cm.setValue(`Error clipping the page\n\n${err}`);
 }
+
+// 在弹出页面的下载按钮点击处理中
+document.getElementById('download-btn').addEventListener('click', async () => {
+  try {
+    await ImageHandler.downloadImages(imageList);
+  } catch (error) {
+    if (error.message.includes('not ready')) {
+      // 添加自动重试机制
+      setTimeout(async () => {
+        await ImageHandler.downloadImages(imageList);
+      }, 500);
+    }
+  }
+});
