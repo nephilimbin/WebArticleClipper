@@ -1,0 +1,97 @@
+{
+  "manifest_version": 2,
+  "name": "Markdown Web Clipper (Enhanced)",
+  "version": "3.5.0",
+  "author": "Gordon Pedsersen (Enhanced by zzb)",
+  "description": "This is an enhanced version of the original Markdown Web Clipper with improved image handling, MathJax support, and more features.",
+  "icons": {
+    "16": "assets/icons/icon-16x16.png",
+    "32": "assets/icons/icon-32x32.png",
+    "48": "assets/icons/icon-48x48.png",
+    "128": "assets/icons/icon-128x128.png",
+    "192": "assets/icons/icon-192x192.png",
+    "512": "assets/icons/icon-512x512.png",
+    "1024": "assets/icons/icon-1024x1024.png"
+  },
+  "permissions": ["<all_urls>", "activeTab", "downloads", "storage", "contextMenus", "clipboardWrite"],
+  "browser_action": {
+    "default_title": "MarkDownload",
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "assets/icons/icon-16x16.png",
+      "32": "assets/icons/icon-32x32.png",
+      "48": "assets/icons/icon-48x48.png",
+      "128": "assets/icons/icon-128x128.png"
+    }
+  },
+  "background": {
+    "scripts": [
+      "browser-polyfill.min.js",
+      "service_worker/apache-mime-types.js",
+      "service_worker/moment.min.js",
+      "service_worker/turndown.js",
+      "service_worker/turndown-plugin-gfm.js",
+      "service_worker/Readability.js",
+      "shared/context-menus.js",
+      "shared/default-options.js",
+      "shared/image-handler.js",
+      "service_worker/background.js"
+    ]
+  },
+  "options_ui": {
+    "page": "options/options.html",
+    "browser_style": false,
+    "chrome_style": false,
+    "open_in_tab": false
+  },
+  "commands": {
+    "_execute_browser_action": {
+      "suggested_key": {
+        "default": "Alt+Shift+M"
+      }
+    },
+    "download_tab_as_markdown": {
+      "suggested_key": {
+        "default": "Alt+Shift+D"
+      },
+      "description": "Save current tab as Markdown"
+    },
+    "copy_tab_as_markdown": {
+      "suggested_key": {
+        "default": "Alt+Shift+C"
+      },
+      "description": "Copy current tab as Markdown to the clipboard"
+    },
+    "copy_selection_as_markdown": {
+      "description": "Copy current selection as Markdown to the clipboard"
+    },
+    "copy_tab_as_markdown_link": {
+      "suggested_key": {
+        "default": "Alt+Shift+L"
+      },
+      "description": "Copy current tab URL as Markdown link to the clipboard"
+    },
+    "copy_selected_tab_as_markdown_link": {
+      "description": "Copy selected tabs URL as Markdown link to the clipboard"
+    },
+    "copy_selection_to_obsidian": {
+      "description": "Copy current selection as Markdown to Obsidian"
+    },
+    "copy_tab_to_obsidian": {
+      "description": "Copy current tab as Markdown to Obsidian"
+    }
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "{1c5e4c6f-5530-49a3-b216-31ce7d744db0}",
+      "strict_min_version": "65.0"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["browser-polyfill.min.js", "shared/image-handler.js", "content_scripts/content_script.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
