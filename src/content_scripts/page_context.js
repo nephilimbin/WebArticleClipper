@@ -1,4 +1,4 @@
-function addLatexToMathJax3() {
+export function addLatexToMathJax3() {
   // 检查 window.MathJax 是否存在
   if (typeof window.MathJax === 'undefined') {
     console.debug('MathJax not found on page');

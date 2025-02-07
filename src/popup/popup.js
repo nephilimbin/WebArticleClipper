@@ -45,20 +45,20 @@ const toggleClipSelection = (options) => {
   options.clipSelection = !options.clipSelection;
   document.querySelector('#selected').classList.toggle('checked');
   document.querySelector('#document').classList.toggle('checked');
-  browser.storage.sync
-    .set(options)
-    .then(() => clipSite())
-    .catch((error) => {
-      console.error(error);
-    });
+  chrome.runtime.sendMessage({ type: 'setOptions', options: options }, (response) => {
+    if (response && response.success) {
+      clipSite();
+    } else {
+      console.error('Error setting options:', response);
+    }
+  });
 };
 
 const toggleIncludeTemplate = (options) => {
   options.includeTemplate = !options.includeTemplate;
   document.querySelector('#includeTemplate').classList.toggle('checked');
-  browser.storage.sync
-    .set(options)
-    .then(() => {
+  chrome.runtime.sendMessage({ type: 'setOptions', options: options }, (response) => {
+    if (response && response.success) {
       browser.contextMenus.update('toggle-includeTemplate', {
         checked: options.includeTemplate,
       });
@@ -67,19 +67,18 @@ const toggleIncludeTemplate = (options) => {
           checked: options.includeTemplate,
         });
       } catch {}
-      return clipSite();
-    })
-    .catch((error) => {
-      console.error(error);
-    });
+      clipSite();
+    } else {
+      console.error('Error setting options:', response);
+    }
+  });
 };
 
 const toggleDownloadImages = (options) => {
   options.downloadImages = !options.downloadImages;
   document.querySelector('#downloadImages').classList.toggle('checked');
-  browser.storage.sync
-    .set(options)
-    .then(() => {
+  chrome.runtime.sendMessage({ type: 'setOptions', options: options }, (response) => {
+    if (response && response.success) {
       browser.contextMenus.update('toggle-downloadImages', {
         checked: options.downloadImages,
       });
@@ -88,20 +87,21 @@ const toggleDownloadImages = (options) => {
           checked: options.downloadImages,
         });
       } catch {}
-    })
-    .catch((error) => {
-      console.error(error);
-    });
+    } else {
+      console.error('Error setting options:', response);
+    }
+  });
 };
 
 function toggleHidePictureMdUrl(options) {
   options.hidePictureMdUrl = !options.hidePictureMdUrl;
-  browser.storage.sync
-    .set(options)
-    .then(() => clipSite())
-    .catch((error) => {
-      console.error(error);
-    });
+  chrome.runtime.sendMessage({ type: 'setOptions', options: options }, (response) => {
+    if (response && response.success) {
+      clipSite();
+    } else {
+      console.error('Error setting options:', response);
+    }
+  });
   document.querySelector('#hidePictureMdUrl').classList.toggle('checked');
 }
 
@@ -124,30 +124,33 @@ const clipSite = (id) => {
           dom: result[0].dom,
           selection: result[0].selection,
         };
-        return browser.storage.sync
-          .get(defaultOptions)
-          .then((options) => {
+        return chrome.runtime.sendMessage({ type: 'getOptions' }, (response) => {
+          if (response && response.options) {
             // 确保所有选项都有默认值
-            options = { ...defaultOptions, ...options };
+            const options = { ...defaultOptions, ...response.options };
             console.log('Options from storage:', options);
             console.log('hidePictureMdUrl value:', options.hidePictureMdUrl);
-            browser.runtime.sendMessage({
-              ...message,
-              ...options,
-            });
-          })
-          .catch((err) => {
-            console.error('Error getting options:', err);
-            showError(err);
-            return browser.runtime.sendMessage({
-              ...message,
-              ...defaultOptions,
-            });
-          })
-          .catch((err) => {
-            console.error('Error sending message:', err);
-            showError(err);
-          });
+            chrome.runtime.sendMessage(
+              {
+                ...message,
+                ...options,
+              },
+              (sendResponse) => {
+                if (sendResponse && sendResponse.success) {
+                  return clipSite(id);
+                } else {
+                  console.error('Error sending message:', sendResponse);
+                  showError(sendResponse);
+                  return clipSite(id);
+                }
+              }
+            );
+          } else {
+            console.error('Error getting options:', response);
+            showError(response);
+            return clipSite(id);
+          }
+        });
       }
     })
     .catch((err) => {
@@ -157,61 +160,40 @@ const clipSite = (id) => {
 };
 
 // inject the necessary scripts
-browser.storage.sync
-  .get(defaultOptions)
-  .then((options) => {
-    checkInitialSettings(options);
+chrome.runtime.sendMessage({ type: 'getOptions' }, (response) => {
+  if (response && response.options) {
+    checkInitialSettings(response.options);
 
     document.getElementById('selected').addEventListener('click', (e) => {
       e.preventDefault();
-      toggleClipSelection(options);
+      toggleClipSelection(response.options);
     });
     document.getElementById('document').addEventListener('click', (e) => {
       e.preventDefault();
-      toggleClipSelection(options);
+      toggleClipSelection(response.options);
     });
     document.getElementById('includeTemplate').addEventListener('click', (e) => {
       e.preventDefault();
-      toggleIncludeTemplate(options);
+      toggleIncludeTemplate(response.options);
     });
     document.getElementById('downloadImages').addEventListener('click', (e) => {
       e.preventDefault();
-      toggleDownloadImages(options);
+      toggleDownloadImages(response.options);
     });
     document.getElementById('hidePictureMdUrl').addEventListener('click', (e) => {
       e.preventDefault();
-      toggleHidePictureMdUrl(options);
+      toggleHidePictureMdUrl(response.options);
     });
 
     return browser.tabs.query({
       currentWindow: true,
       active: true,
     });
-  })
-  .then((tabs) => {
-    var id = tabs[0].id;
-    var url = tabs[0].url;
-    browser.tabs
-      .executeScript(id, {
-        file: '/browser-polyfill.min.js',
-      })
-      .then(() => {
-        return browser.tabs.executeScript(id, {
-          file: '/content_scripts/content_script.js',
-        });
-      })
-      .then(() => {
-        console.info('Successfully injected MarkDownload content script');
-        return clipSite(id);
-      })
-      .catch((error) => {
-        console.error(error);
-        showError(error);
-      });
-  });
+  }
+});
 
 // listen for notifications from the background page
-browser.runtime.onMessage.addListener(notify);
+chrome.runtime.onMessage.addListener(notify);
 
 //function to send the download message to the background page
 function sendDownloadMessage(text) {
@@ -230,7 +212,7 @@ function sendDownloadMessage(text) {
           imageList: imageList,
           mdClipsFolder: mdClipsFolder,
         };
-        return browser.runtime.sendMessage(message);
+        return chrome.runtime.sendMessage(message);
       });
   }
 }

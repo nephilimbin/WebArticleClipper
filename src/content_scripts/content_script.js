@@ -1,6 +1,8 @@
+import { addLatexToMathJax3 } from './page_context.js';
+
 function notifyExtension() {
   // send a message that the content should be clipped
-  browser.runtime.sendMessage({ type: 'clip', dom: content });
+  chrome.runtime.sendMessage({ type: 'clip', dom: content });
 }
 
 function getHTMLOfDocument() {
@@ -98,7 +100,7 @@ function getHTMLOfSelection() {
   }
 }
 
-function getSelectionAndDom() {
+export function getSelectionAndDom() {
   return {
     selection: getHTMLOfSelection(),
     dom: getHTMLOfDocument(),
@@ -141,35 +143,37 @@ async function downloadImage(filename, url) {
   }
 }
 
-// 内联 page_context.js 的功能
+// MathJax处理函数（原page_context.js内容）
+function addLatexToMathJax3() {
+  // 检查 window.MathJax 是否存在
+  if (typeof window.MathJax === 'undefined') {
+    console.debug('MathJax not found on page');
+    return;
+  }
+
+  // 检查必要的 MathJax 属性
+  if (!window.MathJax?.startup?.document?.math) {
+    console.debug('MathJax not initialized');
+    return;
+  }
+
+  try {
+    for (const math of window.MathJax.startup.document.math) {
+      if (math.typesetRoot && math.math) {
+        math.typesetRoot.setAttribute('markdownload-latex', math.math);
+      }
+    }
+  } catch (error) {
+    console.debug('Error processing MathJax:', error);
+  }
+}
+
 function injectMathJaxScript() {
   const script = document.createElement('script');
   script.textContent = `
-    function addLatexToMathJax3() {
-      // 检查 window.MathJax 是否存在
-      if (typeof window.MathJax === 'undefined') {
-        console.debug('MathJax not found on page');
-        return;
-      }
+    (${addLatexToMathJax3.toString()})(); 
     
-      // 检查必要的 MathJax 属性
-      if (!window.MathJax?.startup?.document?.math) {
-        console.debug('MathJax not initialized');
-        return;
-      }
-    
-      try {
-        for (const math of window.MathJax.startup.document.math) {
-          if (math.typesetRoot && math.math) {
-            math.typesetRoot.setAttribute('markdownload-latex', math.math);
-          }
-        }
-      } catch (error) {
-        console.debug('Error processing MathJax:', error);
-      }
-    }
-    
-    // 等待页面加载完成后再执行
+    // 执行时机处理
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', addLatexToMathJax3);
     } else {
@@ -177,12 +181,20 @@ function injectMathJaxScript() {
     }
   `;
   (document.head || document.documentElement).appendChild(script);
-  script.remove(); // 注入后立即移除script标签
+  script.remove();
 }
 
-// 在页面加载完成后执行注入
-if (document.readyState === 'complete') {
-  injectMathJaxScript();
-} else {
-  window.addEventListener('load', injectMathJaxScript);
+// 添加消息处理函数
+function handleMessage(message, sender, sendResponse) {
+  if (message.type === 'copyToClipboard') {
+    copyToClipboard(message.text);
+  } else if (message.type === 'downloadMarkdown') {
+    downloadMarkdown(message.filename, message.text);
+  } else if (message.type === 'downloadImage') {
+    downloadImage(message.filename, message.url).then(sendResponse);
+    return true; // 保持消息通道开放
+  }
 }
+
+// 消息监听器
+chrome.runtime.onMessage.addListener(handleMessage);

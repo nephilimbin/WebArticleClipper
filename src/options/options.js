@@ -42,7 +42,7 @@ const saveOptions = (e) => {
 const save = () => {
   const spinner = document.getElementById('spinner');
   spinner.style.display = 'block';
-  browser.storage.sync
+  chrome.storage.sync
     .set(options)
     .then(() => {
       browser.contextMenus.update('toggle-includeTemplate', {
@@ -144,11 +144,7 @@ const setCurrentChoice = (result) => {
 };
 
 const restoreOptions = () => {
-  const onError = (error) => {
-    console.error(error);
-  };
-
-  browser.storage.sync.get(defaultOptions).then(setCurrentChoice, onError);
+  chrome.storage.sync.get(defaultOptions).then(setCurrentChoice);
 };
 
 function textareaInput() {
@@ -241,7 +237,7 @@ const buttonClick = (e) => {
     var d = new Date();
 
     var datestring = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
-    browser.downloads.download({
+    chrome.downloads.download({
       url: url,
       saveAs: true,
       filename: `MarkDownload-export-${datestring}.json`,

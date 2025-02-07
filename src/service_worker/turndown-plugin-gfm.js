@@ -1,4 +1,4 @@
-var turndownPluginGfm = (function (exports) {
+export const gfmPlugin = function (turndownService) {
   'use strict';
 
   var highlightRegExp = /highlight-(?:text|source)-([a-z0-9]+)/;
@@ -130,11 +130,12 @@ var turndownPluginGfm = (function (exports) {
     turndownService.use([highlightedCodeBlock, strikethrough, tables, taskListItems]);
   }
 
-  exports.gfm = gfm;
-  exports.highlightedCodeBlock = highlightedCodeBlock;
-  exports.strikethrough = strikethrough;
-  exports.tables = tables;
-  exports.taskListItems = taskListItems;
+  gfm(turndownService);
 
-  return exports;
-})({});
+  return {
+    highlightedCodeBlock,
+    strikethrough,
+    tables,
+    taskListItems,
+  };
+};

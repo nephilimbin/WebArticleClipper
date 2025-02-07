@@ -1,14 +1,22 @@
+// 添加模块导入
+import TurndownService from './turndown.js';
+import { gfmPlugin } from './turndown-plugin-gfm.js';
+import Readability from './Readability.js';
+import mimeTypes from './apache-mime-types.js';
+import { DateTime } from 'luxon';
+
 // log some info
-browser.runtime.getPlatformInfo().then(async (platformInfo) => {
-  const browserInfo = browser.runtime.getBrowserInfo ? await browser.runtime.getBrowserInfo() : "Can't get browser info";
+chrome.runtime.getPlatformInfo().then(async (platformInfo) => {
+  const browserInfo = chrome.runtime.getBrowserInfo ? await chrome.runtime.getBrowserInfo() : "Can't get browser info";
   console.info(platformInfo, browserInfo);
 });
 
 // add notification listener for foreground page messages
-browser.runtime.onMessage.addListener(notify);
+chrome.runtime.onMessage.addListener(notify);
 // create context menus
 createMenus();
 
+// 在类外部扩展原型方法
 TurndownService.prototype.defaultEscape = TurndownService.prototype.escape;
 
 // function to convert the article content to markdown using Turndown
@@ -21,7 +29,8 @@ function turndown(content, options, article) {
 
   var turndownService = new TurndownService(options);
 
-  turndownService.use(turndownPluginGfm.gfm);
+  // 应用GFM插件
+  turndownService.use(gfmPlugin);
 
   turndownService.keep(['iframe', 'sub', 'sup', 'u', 'ins', 'del', 'small', 'big']);
 
@@ -308,7 +317,7 @@ function textReplace(string, article, disallowedChars = null) {
   if (matches && matches.forEach) {
     matches.forEach((match) => {
       const format = match.substring(6, match.length - 1);
-      const dateString = moment(now).format(format);
+      const dateString = DateTime.now().toFormat(format);
       string = string.replaceAll(match, dateString);
     });
   }
@@ -431,7 +440,7 @@ async function downloadMarkdown(markdown, title, tabId, imageList = {}, mdClipsF
   const options = await getOptions();
 
   // download via the downloads API
-  if (options.downloadMode == 'downloadsApi' && browser.downloads) {
+  if (options.downloadMode == 'downloadsApi' && chrome.downloads) {
     // create the object url with markdown data as a blob
     const url = URL.createObjectURL(
       new Blob([markdown], {
@@ -442,14 +451,14 @@ async function downloadMarkdown(markdown, title, tabId, imageList = {}, mdClipsF
     try {
       if (mdClipsFolder && !mdClipsFolder.endsWith('/')) mdClipsFolder += '/';
       // start the download
-      const id = await browser.downloads.download({
+      const id = await chrome.downloads.download({
         url: url,
         filename: mdClipsFolder + title + '.md',
         saveAs: options.saveAs,
       });
 
       // add a listener for the download completion
-      browser.downloads.onChanged.addListener(downloadListener(id, url));
+      chrome.downloads.onChanged.addListener(downloadListener(id, url));
 
       // download images (if enabled)
       if (options.downloadImages) {
@@ -458,14 +467,14 @@ async function downloadMarkdown(markdown, title, tabId, imageList = {}, mdClipsF
         if (destPath && !destPath.endsWith('/')) destPath += '/';
         Object.entries(imageList).forEach(async ([src, filename]) => {
           // start the download of the image
-          const imgId = await browser.downloads.download({
+          const imgId = await chrome.downloads.download({
             url: src,
             // set a destination path (relative to md file)
             filename: destPath ? destPath + filename : filename,
             saveAs: false,
           });
           // add a listener (so we can release the blob url)
-          browser.downloads.onChanged.addListener(downloadListener(imgId, src));
+          chrome.downloads.onChanged.addListener(downloadListener(imgId, src));
         });
       }
     } catch (err) {
@@ -481,7 +490,7 @@ async function downloadMarkdown(markdown, title, tabId, imageList = {}, mdClipsF
   //     if (options.obsidianVault) uri += `&vault=${encodeURIComponent(options.obsidianVault)}`;
   //     uri += `&content=${encodeURIComponent(markdown)}`;
   //     let code = `window.location='${uri}'`;
-  //     await browser.tabs.executeScript(tabId, {code: code});
+  //     await chrome.tabs.executeScript(tabId, {code: code});
   //   }
   //   catch (error) {
   //     // This could happen if the extension is not allowed to run code in
@@ -496,7 +505,7 @@ async function downloadMarkdown(markdown, title, tabId, imageList = {}, mdClipsF
       await ensureScripts(tabId);
       const filename = mdClipsFolder + generateValidFileName(title, options.disallowedChars) + '.md';
       const code = `downloadMarkdown("${filename}","${base64EncodeUnicode(markdown)}");`;
-      await browser.tabs.executeScript(tabId, { code: code });
+      await chrome.tabs.executeScript(tabId, { code: code });
     } catch (error) {
       // This could happen if the extension is not allowed to run code in
       // the page, for example if the tab is a privileged page.
@@ -509,7 +518,7 @@ function downloadListener(id, url) {
   const self = (delta) => {
     if (delta.id === id && delta.state && delta.state.current == 'complete') {
       // detatch this listener
-      browser.downloads.onChanged.removeListener(self);
+      chrome.downloads.onChanged.removeListener(self);
       //release the url for the blob
       URL.revokeObjectURL(url);
     }
@@ -555,7 +564,7 @@ async function notify(message) {
     const mdClipsFolder = await formatMdClipsFolder(article);
 
     // display the data in the popup
-    await browser.runtime.sendMessage({ type: 'display.md', markdown: markdown, article: article, imageList: imageList, mdClipsFolder: mdClipsFolder });
+    await chrome.runtime.sendMessage({ type: 'display.md', markdown: markdown, article: article, imageList: imageList, mdClipsFolder: mdClipsFolder });
   }
   // message for triggering download
   else if (message.type == 'download') {
@@ -563,8 +572,8 @@ async function notify(message) {
   }
 }
 
-browser.commands.onCommand.addListener(function (command) {
-  const tab = browser.tabs.getCurrent();
+chrome.commands.onCommand.addListener(function (command) {
+  const tab = chrome.tabs.getCurrent();
   if (command == 'download_tab_as_markdown') {
     const info = { menuItemId: 'download-markdown-all' };
     downloadMarkdownFromContext(info, tab);
@@ -588,7 +597,7 @@ browser.commands.onCommand.addListener(function (command) {
 });
 
 // click handler for the context menus
-browser.contextMenus.onClicked.addListener(function (info, tab) {
+chrome.contextMenus.onClicked.addListener(function (info, tab) {
   // one of the copy to clipboard commands
   if (info.menuItemId.startsWith('copy-markdown')) {
     copyMarkdownFromContext(info, tab);
@@ -624,24 +633,24 @@ async function toggleSetting(setting, options = null) {
   } else {
     // toggle the option and save back to storage
     options[setting] = !options[setting];
-    await browser.storage.sync.set(options);
+    await chrome.storage.sync.set(options);
     if (setting == 'includeTemplate') {
-      browser.contextMenus.update('toggle-includeTemplate', {
+      chrome.contextMenus.update('toggle-includeTemplate', {
         checked: options.includeTemplate,
       });
       try {
-        browser.contextMenus.update('tabtoggle-includeTemplate', {
+        chrome.contextMenus.update('tabtoggle-includeTemplate', {
           checked: options.includeTemplate,
         });
       } catch {}
     }
 
     if (setting == 'downloadImages') {
-      browser.contextMenus.update('toggle-downloadImages', {
+      chrome.contextMenus.update('toggle-downloadImages', {
         checked: options.downloadImages,
       });
       try {
-        browser.contextMenus.update('tabtoggle-downloadImages', {
+        chrome.contextMenus.update('tabtoggle-downloadImages', {
           checked: options.downloadImages,
         });
       } catch {}
@@ -651,12 +660,12 @@ async function toggleSetting(setting, options = null) {
 
 // this function ensures the content script is loaded (and loads it if it isn't)
 async function ensureScripts(tabId) {
-  const results = await browser.tabs.executeScript(tabId, { code: "typeof getSelectionAndDom === 'function';" });
+  const results = await chrome.tabs.executeScript(tabId, { code: "typeof getSelectionAndDom === 'function';" });
   // The content script's last expression will be true if the function
   // has been defined. If this is not the case, then we need to run
   // pageScraper.js to define function getSelectionAndDom.
   if (!results || results[0] !== true) {
-    await browser.tabs.executeScript(tabId, { file: '/content_scripts/content_script.js' });
+    await chrome.tabs.executeScript(tabId, { file: '/content_scripts/content_script.js' });
   }
 }
 
@@ -792,7 +801,7 @@ async function getArticleFromDom(domString) {
 // `selection` is a bool indicating whether we should just get the selected text
 async function getArticleFromContent(tabId, selection = false) {
   // run the content script function to get the details
-  const results = await browser.tabs.executeScript(tabId, { code: 'getSelectionAndDom()' });
+  const results = await chrome.tabs.executeScript(tabId, { code: 'getSelectionAndDom()' });
 
   // make sure we actually got a valid result
   if (results && results[0] && results[0].dom) {
@@ -870,7 +879,7 @@ async function copyTabAsMarkdownLink(tab) {
     await ensureScripts(tab.id);
     const article = await getArticleFromContent(tab.id);
     const title = await formatTitle(article);
-    await browser.tabs.executeScript(tab.id, { code: `copyToClipboard("[${title}](${article.baseURI})")` });
+    await chrome.tabs.executeScript(tab.id, { code: `copyToClipboard("[${title}](${article.baseURI})")` });
     // await navigator.clipboard.writeText(`[${title}](${article.baseURI})`);
   } catch (error) {
     // This could happen if the extension is not allowed to run code in
@@ -884,7 +893,7 @@ async function copyTabAsMarkdownLinkAll(tab) {
   try {
     const options = await getOptions();
     options.frontmatter = options.backmatter = '';
-    const tabs = await browser.tabs.query({
+    const tabs = await chrome.tabs.query({
       currentWindow: true,
     });
 
@@ -898,7 +907,7 @@ async function copyTabAsMarkdownLinkAll(tab) {
     }
 
     const markdown = links.join(`\n`);
-    await browser.tabs.executeScript(tab.id, { code: `copyToClipboard(${JSON.stringify(markdown)})` });
+    await chrome.tabs.executeScript(tab.id, { code: `copyToClipboard(${JSON.stringify(markdown)})` });
   } catch (error) {
     // This could happen if the extension is not allowed to run code in
     // the page, for example if the tab is a privileged page.
@@ -911,7 +920,7 @@ async function copySelectedTabAsMarkdownLink(tab) {
   try {
     const options = await getOptions();
     options.frontmatter = options.backmatter = '';
-    const tabs = await browser.tabs.query({
+    const tabs = await chrome.tabs.query({
       currentWindow: true,
       highlighted: true,
     });
@@ -926,7 +935,7 @@ async function copySelectedTabAsMarkdownLink(tab) {
     }
 
     const markdown = links.join(`\n`);
-    await browser.tabs.executeScript(tab.id, { code: `copyToClipboard(${JSON.stringify(markdown)})` });
+    await chrome.tabs.executeScript(tab.id, { code: `copyToClipboard(${JSON.stringify(markdown)})` });
   } catch (error) {
     // This could happen if the extension is not allowed to run code in
     // the page, for example if the tab is a privileged page.
@@ -952,9 +961,9 @@ async function copyMarkdownFromContext(info, tab) {
       options.frontmatter = options.backmatter = '';
       const article = await getArticleFromContent(tab.id, false);
       const { markdown } = turndown(`<a href="${info.linkUrl}">${info.linkText || info.selectionText}</a>`, { ...options, downloadImages: false }, article);
-      await browser.tabs.executeScript(tab.id, { code: `copyToClipboard(${JSON.stringify(markdown)})` });
+      await chrome.tabs.executeScript(tab.id, { code: `copyToClipboard(${JSON.stringify(markdown)})` });
     } else if (info.menuItemId == 'copy-markdown-image') {
-      await browser.tabs.executeScript(tab.id, { code: `copyToClipboard("![](${info.srcUrl})")` });
+      await chrome.tabs.executeScript(tab.id, { code: `copyToClipboard("![](${info.srcUrl})")` });
     } else if (info.menuItemId == 'copy-markdown-obsidian') {
       const article = await getArticleFromContent(tab.id, info.menuItemId == 'copy-markdown-obsidian');
       const title = await formatTitle(article);
@@ -962,7 +971,7 @@ async function copyMarkdownFromContext(info, tab) {
       const obsidianVault = options.obsidianVault;
       const obsidianFolder = await formatObsidianFolder(article);
       const { markdown } = await convertArticleToMarkdown(article, (downloadImages = false));
-      await browser.tabs.executeScript(tab.id, { code: `copyToClipboard(${JSON.stringify(markdown)})` });
+      await chrome.tabs.executeScript(tab.id, { code: `copyToClipboard(${JSON.stringify(markdown)})` });
       await chrome.tabs.update({ url: 'obsidian://advanced-uri?vault=' + obsidianVault + '&clipboard=true&mode=new&filepath=' + obsidianFolder + generateValidFileName(title) });
     } else if (info.menuItemId == 'copy-markdown-obsall') {
       const article = await getArticleFromContent(tab.id, info.menuItemId == 'copy-markdown-obsall');
@@ -971,12 +980,12 @@ async function copyMarkdownFromContext(info, tab) {
       const obsidianVault = options.obsidianVault;
       const obsidianFolder = await formatObsidianFolder(article);
       const { markdown } = await convertArticleToMarkdown(article, (downloadImages = false));
-      await browser.tabs.executeScript(tab.id, { code: `copyToClipboard(${JSON.stringify(markdown)})` });
-      await browser.tabs.update({ url: 'obsidian://advanced-uri?vault=' + obsidianVault + '&clipboard=true&mode=new&filepath=' + obsidianFolder + generateValidFileName(title) });
+      await chrome.tabs.executeScript(tab.id, { code: `copyToClipboard(${JSON.stringify(markdown)})` });
+      await chrome.tabs.update({ url: 'obsidian://advanced-uri?vault=' + obsidianVault + '&clipboard=true&mode=new&filepath=' + obsidianFolder + generateValidFileName(title) });
     } else {
       const article = await getArticleFromContent(tab.id, info.menuItemId == 'copy-markdown-selection');
       const { markdown } = await convertArticleToMarkdown(article, (downloadImages = false));
-      await browser.tabs.executeScript(tab.id, { code: `copyToClipboard(${JSON.stringify(markdown)})` });
+      await chrome.tabs.executeScript(tab.id, { code: `copyToClipboard(${JSON.stringify(markdown)})` });
     }
   } catch (error) {
     // This could happen if the extension is not allowed to run code in
@@ -986,7 +995,7 @@ async function copyMarkdownFromContext(info, tab) {
 }
 
 async function downloadMarkdownForAllTabs(info) {
-  const tabs = await browser.tabs.query({
+  const tabs = await chrome.tabs.query({
     currentWindow: true,
   });
   tabs.forEach((tab) => {

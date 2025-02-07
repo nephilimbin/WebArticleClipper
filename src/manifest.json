@@ -1,5 +1,5 @@
 {
-  "manifest_version": 2,
+  "manifest_version": 3,
   "name": "Markdown Web Clipper (Enhanced)",
   "version": "3.5.0",
   "author": "Gordon Pedsersen (Enhanced by zzb)",
@@ -13,8 +13,9 @@
     "512": "assets/icons/icon-512x512.png",
     "1024": "assets/icons/icon-1024x1024.png"
   },
-  "permissions": ["<all_urls>", "activeTab", "downloads", "storage", "contextMenus", "clipboardWrite"],
-  "browser_action": {
+  "permissions": ["activeTab", "scripting", "downloads", "storage", "contextMenus", "clipboardWrite"],
+  "host_permissions": ["<all_urls>"],
+  "action": {
     "default_title": "MarkDownload",
     "default_popup": "popup/popup.html",
     "default_icon": {
@@ -25,23 +26,11 @@
     }
   },
   "background": {
-    "scripts": [
-      "browser-polyfill.min.js",
-      "service_worker/apache-mime-types.js",
-      "service_worker/moment.min.js",
-      "service_worker/turndown.js",
-      "service_worker/turndown-plugin-gfm.js",
-      "service_worker/Readability.js",
-      "shared/context-menus.js",
-      "shared/default-options.js",
-      "shared/image-handler.js",
-      "service_worker/background.js"
-    ]
+    "service_worker": "background.js",
+    "type": "module"
   },
   "options_ui": {
     "page": "options/options.html",
-    "browser_style": false,
-    "chrome_style": false,
     "open_in_tab": false
   },
   "commands": {
@@ -90,7 +79,7 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["browser-polyfill.min.js", "shared/image-handler.js", "content_scripts/content_script.js"],
+      "js": ["content_scripts/content_script.js"],
       "run_at": "document_idle"
     }
   ]

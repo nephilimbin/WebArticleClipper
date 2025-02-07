@@ -1,6 +1,27 @@
 # Changelog
 
-## [3.5.0] - 未发布
+## [3.5.0] - 2024-03-15
+
+### Changed
+- 升级Manifest至V3规范
+- 重构后台脚本为Service Worker
+- 使用ES Modules模块系统
+- 更新API调用方式（chrome.*代替browser.*）
+- 优化权限声明方式
+- 移除browser-polyfill依赖
+- 重构Readability为ES模块
+- 升级turndown.js至ES模块规范
+- 重构模块导入导出方式以兼容Manifest V3
+- 保持核心转换逻辑零修改
+- 升级turndown-plugin-gfm.js至ES模块规范
+- 保持GFM插件功能零修改
+- 升级content_script.js至ES模块规范
+- 统一使用chrome.*命名空间API
+- 整合page_context.js到content_script.js
+- 优化代码组织结构，减少文件数量
+- 升级options.js至使用chrome.* API
+- 升级popup.js至使用chrome.* API
+- 优化弹出窗口消息通信机制
 
 ### 新增
 - 图片处理功能增强
@@ -45,6 +66,16 @@
   - 移除外部脚本依赖
   - 优化代码注入时机
   - 改进错误处理
+- 修复内容脚本消息处理器缺失问题
+- 完善后台与内容脚本的通信机制
+
+## [3.5.1] - 2024-03-20
+### Fixed
+- 修正表格对齐映射规则
+- 增强任务列表项内容提取
+- 优化真实网页测试选择器
+### Changed
+- 使用更灵活的正则表达式进行断言
 
 ## [3.4.0]
 - Fixed extra spaces in titles which could cause issues (thanks @rickdoesdev !)
@@ -60,3 +91,8 @@
 - Fixed an issue with readability removing everything in certain circumstances (thanks @WeHat !)
 - Send properly configured title to the Obsidian integration (thanks @nekton39 !)
 - Updates to the README (thanks @2gn and @eugenesvk !)
+
+## [3.5.0] - 2023-12-01
+### Fixed
+- 修复弹出窗口重复获取配置的问题
+- 优化下载消息处理流程
