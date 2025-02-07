@@ -13,20 +13,18 @@
     "512": "assets/icons/icon-512x512.png",
     "1024": "assets/icons/icon-1024x1024.png"
   },
-  "permissions": ["activeTab", "scripting", "downloads", "storage", "contextMenus", "clipboardWrite"],
+  "permissions": ["activeTab", "scripting", "downloads", "storage", "contextMenus"],
   "host_permissions": ["<all_urls>"],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  },
   "action": {
     "default_title": "MarkDownload",
     "default_popup": "popup/popup.html",
-    "default_icon": {
-      "16": "assets/icons/icon-16x16.png",
-      "32": "assets/icons/icon-32x32.png",
-      "48": "assets/icons/icon-48x48.png",
-      "128": "assets/icons/icon-128x128.png"
-    }
+    "default_icon": "assets/icons/icon-128x128.png"
   },
   "background": {
-    "service_worker": "background.js",
+    "service_worker": "service-worker.js",
     "type": "module"
   },
   "options_ui": {
@@ -34,7 +32,7 @@
     "open_in_tab": false
   },
   "commands": {
-    "_execute_browser_action": {
+    "_execute_action": {
       "suggested_key": {
         "default": "Alt+Shift+M"
       }

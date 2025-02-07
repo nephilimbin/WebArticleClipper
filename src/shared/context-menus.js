@@ -1,5 +1,7 @@
+import { getOptions } from './default-options.js';
+
 // create the context menus
-async function createMenus() {
+export async function createMenus() {
   const options = await getOptions();
 
   // 使用chrome API移除所有菜单
@@ -13,45 +15,45 @@ async function createMenus() {
         chrome.contextMenus.create({
           id: 'download-markdown-tab',
           title: 'Download Tab as Markdown',
-          contexts: ['tab'],
+          contexts: ['page'],
         }),
         chrome.contextMenus.create({
           id: 'tab-download-markdown-alltabs',
           title: 'Download All Tabs as Markdown',
-          contexts: ['tab'],
+          contexts: ['page'],
         }),
         chrome.contextMenus.create({
           id: 'copy-tab-as-markdown-link-tab',
           title: 'Copy Tab URL as Markdown Link',
-          contexts: ['tab'],
+          contexts: ['page'],
         }),
         chrome.contextMenus.create({
           id: 'copy-tab-as-markdown-link-all-tab',
           title: 'Copy All Tab URLs as Markdown Link List',
-          contexts: ['tab'],
+          contexts: ['page'],
         }),
         chrome.contextMenus.create({
           id: 'copy-tab-as-markdown-link-selected-tab',
           title: 'Copy Selected Tab URLs as Markdown Link List',
-          contexts: ['tab'],
+          contexts: ['page'],
         }),
         chrome.contextMenus.create({
           id: 'tab-separator-1',
           type: 'separator',
-          contexts: ['tab'],
+          contexts: ['page'],
         }),
         chrome.contextMenus.create({
           id: 'tabtoggle-includeTemplate',
           type: 'checkbox',
           title: 'Include front/back template',
-          contexts: ['tab'],
+          contexts: ['page'],
           checked: options.includeTemplate,
         }),
         chrome.contextMenus.create({
           id: 'tabtoggle-downloadImages',
           type: 'checkbox',
           title: 'Download Images',
-          contexts: ['tab'],
+          contexts: ['page'],
           checked: options.downloadImages,
         }),
       ]);

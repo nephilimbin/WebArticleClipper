@@ -1,4 +1,8 @@
 ---
+description: 
+globs: 
+---
+---
 description: 整体项目需要遵循的一般规则或条件。
 globs: *
 ---

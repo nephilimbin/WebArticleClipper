@@ -3,25 +3,71 @@ var selectedText = null;
 var imageList = null;
 var mdClipsFolder = '';
 
-const darkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
-// set up event handlers
-const cm = CodeMirror.fromTextArea(document.getElementById('md'), {
-  theme: darkMode ? 'xq-dark' : 'xq-light',
-  mode: 'markdown',
-  lineWrapping: true,
-});
-cm.on('cursorActivity', (cm) => {
-  const somethingSelected = cm.somethingSelected();
-  var a = document.getElementById('downloadSelection');
+// 模块导入路径修正
+import ImageHandler from '../shared/image-handler.js';
 
-  if (somethingSelected) {
-    if (a.style.display != 'block') a.style.display = 'block';
-  } else {
-    if (a.style.display != 'none') a.style.display = 'none';
+// 初始化CodeMirror（完整实现）
+let cm;
+function initCodeMirror() {
+  const darkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  cm = CodeMirror.fromTextArea(document.getElementById('md'), {
+    theme: darkMode ? 'xq-dark' : 'xq-light',
+    mode: 'markdown',
+    lineWrapping: true,
+    extraKeys: {
+      'Ctrl-S': saveDraft,
+      'Cmd-S': saveDraft,
+    },
+  });
+}
+
+// 完整事件绑定
+function bindEventListeners() {
+  document.getElementById('download').addEventListener('click', handleDownload);
+  document.getElementById('downloadSelection').addEventListener('click', handleSelectionDownload);
+  document.getElementById('options').addEventListener('click', openOptionsPage);
+}
+
+// 完整初始化流程
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    initCodeMirror();
+    bindEventListeners();
+    await loadUserSettings();
+    await checkServiceWorker();
+    initializeClipboard();
+  } catch (error) {
+    console.error('Initialization failed:', error);
+    showError(error);
   }
 });
-document.getElementById('download').addEventListener('click', download);
-document.getElementById('downloadSelection').addEventListener('click', downloadSelection);
+
+// Service Worker状态检查
+async function checkServiceWorker() {
+  if (!navigator.serviceWorker?.controller) {
+    console.warn('SW not ready, retrying...');
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    return checkServiceWorker();
+  }
+}
+
+// 完整下载处理
+async function handleDownload(e) {
+  e.preventDefault();
+  try {
+    const markdown = cm.getValue();
+    const title = document.getElementById('title').value;
+    await chrome.runtime.sendMessage({
+      type: 'download',
+      markdown,
+      title,
+      imageList,
+    });
+    window.close();
+  } catch (error) {
+    showError(error);
+  }
+}
 
 const defaultOptions = {
   includeTemplate: false,
@@ -225,14 +271,24 @@ async function download(e) {
 }
 
 // event handler for download selected button
-async function downloadSelection(e) {
+async function handleSelectionDownload(e) {
   e.preventDefault();
-  if (cm.somethingSelected()) {
-    await sendDownloadMessage(cm.getSelection());
+  try {
+    if (cm.somethingSelected()) {
+      const selection = cm.getSelection();
+      await chrome.runtime.sendMessage({
+        type: 'download',
+        markdown: selection,
+        title: document.getElementById('title').value + '_selection',
+        imageList,
+      });
+    }
+  } catch (error) {
+    showError(error);
   }
 }
 
-//function that handles messages from the injected script into the site
+// function that handles messages from the injected script into the site
 function notify(message) {
   // message for displaying markdown
   if (message.type == 'display.md') {
@@ -259,16 +315,47 @@ function showError(err) {
   cm.setValue(`Error clipping the page\n\n${err}`);
 }
 
-// 在弹出页面的下载按钮点击处理中
-document.getElementById('download-btn').addEventListener('click', async () => {
-  try {
-    await ImageHandler.downloadImages(imageList);
-  } catch (error) {
-    if (error.message.includes('not ready')) {
-      // 添加自动重试机制
-      setTimeout(async () => {
+// 在DOM加载完成后执行
+document.addEventListener('DOMContentLoaded', () => {
+  // 添加安全检测
+  const downloadBtn = document.getElementById('download-btn');
+  if (downloadBtn) {
+    downloadBtn.addEventListener('click', async () => {
+      try {
         await ImageHandler.downloadImages(imageList);
-      }, 500);
-    }
+      } catch (error) {
+        console.error('Image download error:', error);
+      }
+    });
+  } else {
+    console.warn('Download button not found in DOM');
   }
+
+  // 其他初始化代码...
 });
+
+// 添加缺失的函数实现
+function openOptionsPage(e) {
+  e.preventDefault();
+  chrome.runtime.openOptionsPage();
+}
+
+// 补充草稿保存功能
+function saveDraft() {
+  const content = cm.getValue();
+  chrome.storage.local.set({ draft: content });
+}
+
+// 初始化剪贴板功能
+function initializeClipboard() {
+  cm.on('cursorActivity', (instance) => {
+    const hasSelection = instance.somethingSelected();
+    document.getElementById('downloadSelection').style.display = hasSelection ? 'block' : 'none';
+  });
+}
+
+// 加载用户设置
+async function loadUserSettings() {
+  const result = await chrome.storage.sync.get(defaultOptions);
+  checkInitialSettings(result);
+}
