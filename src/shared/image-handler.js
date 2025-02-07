@@ -1,11 +1,11 @@
 // 定义安全的 MIME 类型
-const SAFE_MIME_TYPES = {
+const SAFE_MIME_TYPES = Object.freeze({
   'image/jpeg': ['jpg', 'jpeg'],
   'image/png': ['png'],
   'image/gif': ['gif'],
   'image/webp': ['webp'],
   'image/svg+xml': ['svg'],
-};
+});
 
 // 最大图片大小 (50MB)
 const MAX_IMAGE_SIZE = 50 * 1024 * 1024;
@@ -25,7 +25,10 @@ class ImageHandler {
         method: 'GET',
         headers: {
           Accept: Object.keys(SAFE_MIME_TYPES).join(', '),
+          'Content-Security-Policy': "default-src 'self'",
+          'X-Content-Type-Options': 'nosniff',
         },
+        credentials: 'omit',
       });
 
       if (!response.ok) {
@@ -104,9 +107,5 @@ class ImageHandler {
   }
 }
 
-// 导出模块
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = ImageHandler;
-} else {
-  window.ImageHandler = ImageHandler;
-}
+// MV3模块导出方式
+export default ImageHandler;

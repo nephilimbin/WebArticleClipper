@@ -4,6 +4,9 @@ import { gfmPlugin } from './turndown-plugin-gfm.js';
 import Readability from './Readability.js';
 import mimeTypes from './apache-mime-types.js';
 import { DateTime } from 'luxon';
+import { initOptions } from '../shared/default-options.js';
+import { createMenus } from '../shared/context-menus.js';
+import ImageHandler from '../shared/image-handler.js';
 
 // log some info
 chrome.runtime.getPlatformInfo().then(async (platformInfo) => {
@@ -1033,4 +1036,13 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     self.clients.claim() // 立即控制所有客户端
   );
+});
+
+// 在Service Worker安装事件中添加初始化逻辑
+chrome.runtime.onInstalled.addListener(async ({ reason }) => {
+  if (reason === 'install' || reason === 'update') {
+    await initOptions(); // 初始化默认配置
+    await createMenus(); // 创建右键菜单
+    console.log('Extension initialized with default options');
+  }
 });
