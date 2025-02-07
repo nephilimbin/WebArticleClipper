@@ -80,5 +80,11 @@
       "js": ["content_scripts/content_script.js"],
       "run_at": "document_idle"
     }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["popup/popup.js", "popup/popup.css", "popup/lib/*", "assets/icons/*", "content_scripts/content_script.js"],
+      "matches": ["<all_urls>"]
+    }
   ]
 }

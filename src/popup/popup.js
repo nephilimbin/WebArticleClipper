@@ -359,3 +359,9 @@ async function loadUserSettings() {
   const result = await chrome.storage.sync.get(defaultOptions);
   checkInitialSettings(result);
 }
+
+// 在文件底部添加错误处理
+window.addEventListener('error', (e) => {
+  console.error('Global error:', e);
+  showError(e.error);
+});

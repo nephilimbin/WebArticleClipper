@@ -2,35 +2,18 @@
 const SW_VERSION = '3.5.0';
 let isServiceWorkerActive = false;
 
-// 增强的Service Worker注册逻辑
-function registerServiceWorker() {
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker
-      .register('/service_worker/service-worker.js')
-      .then((registration) => {
-        console.log('SW registered:', registration);
-        isServiceWorkerActive = true;
-      })
-      .catch((error) => {
-        console.error('SW registration failed:', error);
-        isServiceWorkerActive = false;
-      });
-  }
-}
-
 // 修改初始化逻辑
 async function initializeExtension() {
   await initOptions();
   await createMenus();
-  registerServiceWorker();
 
-  // 添加心跳检测
-  setInterval(() => {
-    if (!isServiceWorkerActive) {
-      console.warn('SW inactive, re-registering...');
-      registerServiceWorker();
-    }
-  }, 5000);
+  // 添加MV3特有的SW状态检查
+  if (chrome.runtime.getManifest().manifest_version === 3) {
+    isServiceWorkerActive = true; // MV3自动管理SW生命周期
+    console.log('MV3 Service Worker active');
+  } else {
+    console.error('Unsupported manifest version');
+  }
 }
 
 // 替换原来的install/activate事件处理
@@ -52,10 +35,11 @@ import Readability from './service_worker/Readability.js';
 import mimeTypes from './service_worker/apache-mime-types.js';
 import dayjs from './service_worker/dayjs.min.js';
 
-// log some info
+// 修改浏览器信息获取逻辑
 chrome.runtime.getPlatformInfo().then(async (platformInfo) => {
-  const browserInfo = chrome.runtime.getBrowserInfo ? await chrome.runtime.getBrowserInfo() : "Can't get browser info";
-  console.info(platformInfo, browserInfo);
+  // 使用特性检测替代直接调用
+  const browserInfo = chrome.runtime.getBrowserInfo ? await chrome.runtime.getBrowserInfo() : { name: 'Chrome', version: navigator.userAgent.match(/Chrome\/(\d+)/)?.[1] };
+  console.info('Platform Info:', platformInfo, 'Browser Info:', browserInfo);
 });
 
 // add notification listener for foreground page messages

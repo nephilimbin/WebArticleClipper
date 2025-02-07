@@ -10,7 +10,7 @@ const SAFE_MIME_TYPES = Object.freeze({
 // 最大图片大小 (50MB)
 const MAX_IMAGE_SIZE = 50 * 1024 * 1024;
 
-class ImageHandler {
+export default class ImageHandler {
   /**
    * 下载单个图片
    * @param {string} url 图片URL
@@ -106,6 +106,3 @@ class ImageHandler {
     return SAFE_MIME_TYPES[mimeType]?.[0] || 'jpg';
   }
 }
-
-// MV3模块导出方式
-export default ImageHandler;
