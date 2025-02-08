@@ -2,29 +2,6 @@
 const SW_VERSION = '3.5.0';
 let isServiceWorkerActive = false;
 
-// 修改初始化逻辑
-async function initializeExtension() {
-  await initOptions();
-  await createMenus();
-
-  // 添加MV3特有的SW状态检查
-  if (chrome.runtime.getManifest().manifest_version === 3) {
-    isServiceWorkerActive = true; // MV3自动管理SW生命周期
-    console.log('MV3 Service Worker active');
-  } else {
-    console.error('Unsupported manifest version');
-  }
-}
-
-// 替换原来的install/activate事件处理
-chrome.runtime.onInstalled.addListener(({ reason }) => {
-  if (reason === 'install' || reason === 'update') {
-    initializeExtension().then(() => {
-      console.log(`Extension v${SW_VERSION} initialized`);
-    });
-  }
-});
-
 // 添加模块导入
 import TurndownService from './service_worker/turndown.js';
 import { gfmPlugin } from './service_worker/turndown-plugin-gfm.js';
@@ -34,6 +11,7 @@ import ImageHandler from './shared/image-handler.js';
 import Readability from './service_worker/Readability.js';
 import mimeTypes from './service_worker/apache-mime-types.js';
 import dayjs from './service_worker/dayjs.min.js';
+import { getOptions } from './shared/default-options.js';
 
 // 修改浏览器信息获取逻辑
 chrome.runtime.getPlatformInfo().then(async (platformInfo) => {
@@ -565,7 +543,7 @@ function base64EncodeUnicode(str) {
 
 //function that handles messages from the injected script into the site
 async function notify(message) {
-  const options = await this.getOptions();
+  const options = await getOptions();
   // message for initial clipping of the dom
   if (message.type == 'clip') {
     console.log('Received clip message with options:', message);
@@ -1057,6 +1035,3 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.storage.onChanged.addListener(() => {
   createMenus().catch(console.error);
 });
-
-const now = dayjs();
-console.log(now.format('YYYY-MM-DD')); // 应输出当前日期

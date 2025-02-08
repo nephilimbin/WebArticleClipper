@@ -843,7 +843,69 @@ _**User**_
 
 _**Assistant**_
 
+<think>
 
+您发现了一个重要的代码问题！原代码中的`browser.runtime.sendMessage(message)`被错误地修改为嵌套调用，这是不必要的。以下是正确的修复方案：
+
+```diff:src/popup/popup.js
+        return browser.tabs
+          .query({
+            currentWindow: true,
+            active: true,
+          })
+          .then((tabs) => {
+            var message = {
+              type: 'download',
+              markdown: text,
+              title: document.getElementById('title').value,
+              tab: tabs[0],
+              imageList: imageList,
+              mdClipsFolder: mdClipsFolder,
+            };
+-           return chrome.runtime.sendMessage({ type: 'getOptions' }, (response) => {
+-             if (response && response.options) {
+-               message.options = response.options;
+-               return chrome.runtime.sendMessage(message);
+-             } else {
+-               console.error('Error getting options:', response);
+-               return null;
+-             }
+-           });
++           return chrome.runtime.sendMessage(message);
+          });
+```
+
+
+问题分析：
+1. **冗余调用**：原代码已通过`clipSite`函数获取过options
+2. **消息结构**：`message`对象已包含必要的options参数
+3. **异步流程**：不需要再次获取options，直接发送消息即可
+
+正确流程说明：
+1. 用户点击下载按钮
+2. 收集当前页面数据构建message对象
+3. 直接通过`chrome.runtime.sendMessage`发送消息
+4. 后台脚本处理消息时会自行获取最新配置
+
+建议同步更新以下文件：
+
+```markdown:CHANGELOG.md
+## [3.5.0] - 2023-12-01
+### Fixed
+- 修复弹出窗口重复获取配置的问题
+- 优化下载消息处理流程
+```
+
+
+验证方式：
+```bash
+npm run dev:chrome
+```
+
+测试以下功能：
+1. 弹出窗口下载按钮点击
+2. Markdown文件生成与下载
+3. 配置变更后的即时生效
 
 ---
 

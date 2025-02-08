@@ -206,37 +206,7 @@ const clipSite = (id) => {
 };
 
 // inject the necessary scripts
-chrome.runtime.sendMessage({ type: 'getOptions' }, (response) => {
-  if (response && response.options) {
-    checkInitialSettings(response.options);
-
-    document.getElementById('selected').addEventListener('click', (e) => {
-      e.preventDefault();
-      toggleClipSelection(response.options);
-    });
-    document.getElementById('document').addEventListener('click', (e) => {
-      e.preventDefault();
-      toggleClipSelection(response.options);
-    });
-    document.getElementById('includeTemplate').addEventListener('click', (e) => {
-      e.preventDefault();
-      toggleIncludeTemplate(response.options);
-    });
-    document.getElementById('downloadImages').addEventListener('click', (e) => {
-      e.preventDefault();
-      toggleDownloadImages(response.options);
-    });
-    document.getElementById('hidePictureMdUrl').addEventListener('click', (e) => {
-      e.preventDefault();
-      toggleHidePictureMdUrl(response.options);
-    });
-
-    return browser.tabs.query({
-      currentWindow: true,
-      active: true,
-    });
-  }
-});
+const options = await chrome.runtime.sendMessage({ type: 'getOptions' });
 
 // listen for notifications from the background page
 chrome.runtime.onMessage.addListener(notify);
@@ -317,8 +287,12 @@ function showError(err) {
 
 // 在DOM加载完成后执行
 document.addEventListener('DOMContentLoaded', () => {
-  // 添加安全检测
   const downloadBtn = document.getElementById('download-btn');
+  if (!downloadBtn) {
+    console.error('Download button not found! Current DOM:', document.documentElement.innerHTML);
+  }
+
+  // 添加安全检测
   if (downloadBtn) {
     downloadBtn.addEventListener('click', async () => {
       try {

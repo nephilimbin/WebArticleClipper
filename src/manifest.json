@@ -83,7 +83,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["popup/popup.js", "popup/popup.css", "popup/lib/*", "assets/icons/*", "content_scripts/content_script.js"],
+      "resources": ["popup/popup.html", "popup/popup.js", "popup/popup.css", "popup/lib/*.css", "assets/icons/*", "shared/image-handler.js", "options/options.html"],
       "matches": ["<all_urls>"]
     }
   ]

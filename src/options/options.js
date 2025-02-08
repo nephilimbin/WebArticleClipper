@@ -45,20 +45,20 @@ const save = () => {
   chrome.storage.sync
     .set(options)
     .then(() => {
-      browser.contextMenus.update('toggle-includeTemplate', {
+      chrome.contextMenus.update('toggle-includeTemplate', {
         checked: options.includeTemplate,
       });
       try {
-        browser.contextMenus.update('tabtoggle-includeTemplate', {
+        chrome.contextMenus.update('tabtoggle-includeTemplate', {
           checked: options.includeTemplate,
         });
       } catch {}
 
-      browser.contextMenus.update('toggle-downloadImages', {
+      chrome.contextMenus.update('toggle-downloadImages', {
         checked: options.downloadImages,
       });
       try {
-        browser.contextMenus.update('tabtoggle-downloadImages', {
+        chrome.contextMenus.update('tabtoggle-downloadImages', {
           checked: options.downloadImages,
         });
       } catch {}
@@ -97,7 +97,7 @@ const setCurrentChoice = (result) => {
 
   // if browser doesn't support the download api (i.e. Safari)
   // we have to use contentLink download mode
-  if (!browser.downloads) {
+  if (!chrome.downloads) {
     options.downloadMode = 'contentLink';
     document.querySelectorAll("[name='downloadMode']").forEach((el) => (el.disabled = true));
     document.querySelector('#downloadMode p').innerText = 'The Downloas API is unavailable in this browser.';
@@ -197,7 +197,7 @@ const inputChange = (e) => {
         let lines = ev.target.result;
         options = JSON.parse(lines);
         setCurrentChoice(options);
-        browser.contextMenus.removeAll();
+        chrome.contextMenus.removeAll();
         createMenus();
         save();
         refereshElements();
@@ -211,7 +211,7 @@ const inputChange = (e) => {
         if (value) {
           createMenus();
         } else {
-          browser.contextMenus.removeAll();
+          chrome.contextMenus.removeAll();
         }
       }
 
