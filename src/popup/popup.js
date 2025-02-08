@@ -5,6 +5,7 @@ var mdClipsFolder = '';
 
 // 模块导入路径修正
 import ImageHandler from '../shared/image-handler.js';
+import { defaultOptions, getOptions } from '../shared/default-options.js';
 
 // 初始化CodeMirror（完整实现）
 let cm;
@@ -23,9 +24,47 @@ function initCodeMirror() {
 
 // 完整事件绑定
 function bindEventListeners() {
-  document.getElementById('download').addEventListener('click', handleDownload);
-  document.getElementById('downloadSelection').addEventListener('click', handleSelectionDownload);
-  document.getElementById('options').addEventListener('click', openOptionsPage);
+  const downloadBtn = document.getElementById('download-btn');
+  const downloadSelection = document.getElementById('downloadSelection');
+  const optionsBtn = document.getElementById('options');
+  const includeTemplateBtn = document.querySelector('#includeTemplate');
+  const downloadImagesBtn = document.querySelector('#downloadImages');
+  const hidePictureBtn = document.querySelector('#hidePictureMdUrl');
+
+  if (downloadBtn) {
+    downloadBtn.addEventListener('click', handleDownload);
+  } else {
+    console.error('Download button not found');
+  }
+
+  if (downloadSelection) {
+    downloadSelection.addEventListener('click', handleSelectionDownload);
+  }
+
+  if (optionsBtn) {
+    optionsBtn.addEventListener('click', openOptionsPage);
+  }
+
+  if (includeTemplateBtn) {
+    includeTemplateBtn.addEventListener('click', async () => {
+      const options = await getOptions();
+      toggleIncludeTemplate(options);
+    });
+  }
+
+  if (downloadImagesBtn) {
+    downloadImagesBtn.addEventListener('click', async () => {
+      const options = await getOptions();
+      toggleDownloadImages(options);
+    });
+  }
+
+  if (hidePictureBtn) {
+    hidePictureBtn.addEventListener('click', async () => {
+      const options = await getOptions();
+      toggleHidePictureMdUrl(options);
+    });
+  }
 }
 
 // 完整初始化流程
@@ -36,6 +75,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadUserSettings();
     await checkServiceWorker();
     initializeClipboard();
+
+    // 添加元素存在性检查
+    const container = document.getElementById('container');
+    const spinner = document.getElementById('spinner');
+    if (container && spinner) {
+      container.style.display = 'flex';
+      spinner.style.display = 'none';
+    }
   } catch (error) {
     console.error('Initialization failed:', error);
     showError(error);
@@ -69,13 +116,6 @@ async function handleDownload(e) {
   }
 }
 
-const defaultOptions = {
-  includeTemplate: false,
-  clipSelection: true,
-  downloadImages: false,
-  hidePictureMdUrl: false,
-};
-
 const checkInitialSettings = (options) => {
   if (options.includeTemplate) document.querySelector('#includeTemplate').classList.add('checked');
 
@@ -100,55 +140,39 @@ const toggleClipSelection = (options) => {
   });
 };
 
-const toggleIncludeTemplate = (options) => {
+// 保留并修正异步版本函数
+async function toggleIncludeTemplate() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const options = await getOptions();
   options.includeTemplate = !options.includeTemplate;
+  await chrome.runtime.sendMessage({
+    type: 'setOptions',
+    options: options,
+  });
   document.querySelector('#includeTemplate').classList.toggle('checked');
-  chrome.runtime.sendMessage({ type: 'setOptions', options: options }, (response) => {
-    if (response && response.success) {
-      browser.contextMenus.update('toggle-includeTemplate', {
-        checked: options.includeTemplate,
-      });
-      try {
-        browser.contextMenus.update('tabtoggle-includeTemplate', {
-          checked: options.includeTemplate,
-        });
-      } catch {}
-      clipSite();
-    } else {
-      console.error('Error setting options:', response);
-    }
-  });
-};
+  clipSite(tab.id);
+}
 
-const toggleDownloadImages = (options) => {
+async function toggleDownloadImages() {
+  const options = await getOptions();
   options.downloadImages = !options.downloadImages;
-  document.querySelector('#downloadImages').classList.toggle('checked');
-  chrome.runtime.sendMessage({ type: 'setOptions', options: options }, (response) => {
-    if (response && response.success) {
-      browser.contextMenus.update('toggle-downloadImages', {
-        checked: options.downloadImages,
-      });
-      try {
-        browser.contextMenus.update('tabtoggle-downloadImages', {
-          checked: options.downloadImages,
-        });
-      } catch {}
-    } else {
-      console.error('Error setting options:', response);
-    }
+  await chrome.runtime.sendMessage({
+    type: 'setOptions',
+    options: options,
   });
-};
+  document.querySelector('#downloadImages').classList.toggle('checked');
+}
 
-function toggleHidePictureMdUrl(options) {
+async function toggleHidePictureMdUrl() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const options = await getOptions();
   options.hidePictureMdUrl = !options.hidePictureMdUrl;
-  chrome.runtime.sendMessage({ type: 'setOptions', options: options }, (response) => {
-    if (response && response.success) {
-      clipSite();
-    } else {
-      console.error('Error setting options:', response);
-    }
+  await chrome.runtime.sendMessage({
+    type: 'setOptions',
+    options: options,
   });
   document.querySelector('#hidePictureMdUrl').classList.toggle('checked');
+  clipSite(tab.id);
 }
 
 const showOrHideClipOption = (selection) => {
@@ -160,9 +184,12 @@ const showOrHideClipOption = (selection) => {
 };
 
 const clipSite = (id) => {
-  return browser.tabs
-    .executeScript(id, { code: 'getSelectionAndDom()' })
-    .then((result) => {
+  return chrome.scripting
+    .executeScript({
+      target: { tabId: id },
+      func: () => window.getSelectionAndDom(),
+    })
+    .then(async (result) => {
       if (result && result[0]) {
         showOrHideClipOption(result[0].selection);
         let message = {
@@ -170,33 +197,18 @@ const clipSite = (id) => {
           dom: result[0].dom,
           selection: result[0].selection,
         };
-        return chrome.runtime.sendMessage({ type: 'getOptions' }, (response) => {
-          if (response && response.options) {
-            // 确保所有选项都有默认值
-            const options = { ...defaultOptions, ...response.options };
-            console.log('Options from storage:', options);
-            console.log('hidePictureMdUrl value:', options.hidePictureMdUrl);
-            chrome.runtime.sendMessage(
-              {
-                ...message,
-                ...options,
-              },
-              (sendResponse) => {
-                if (sendResponse && sendResponse.success) {
-                  return clipSite(id);
-                } else {
-                  console.error('Error sending message:', sendResponse);
-                  showError(sendResponse);
-                  return clipSite(id);
-                }
-              }
-            );
-          } else {
-            console.error('Error getting options:', response);
-            showError(response);
-            return clipSite(id);
-          }
+
+        const response = await chrome.runtime.sendMessage({
+          type: 'get_current_options',
         });
+
+        if (response && response.options) {
+          const options = { ...defaultOptions, ...response.options };
+          return chrome.runtime.sendMessage({
+            ...message,
+            ...options,
+          });
+        }
       }
     })
     .catch((err) => {
@@ -273,7 +285,7 @@ function notify(message) {
     document.getElementById('container').style.display = 'flex';
     document.getElementById('spinner').style.display = 'none';
     // focus the download button
-    document.getElementById('download').focus();
+    document.getElementById('download-btn').focus();
     cm.refresh();
   }
 }
@@ -330,8 +342,13 @@ function initializeClipboard() {
 
 // 加载用户设置
 async function loadUserSettings() {
-  const result = await chrome.storage.sync.get(defaultOptions);
-  checkInitialSettings(result);
+  try {
+    const result = await chrome.storage.sync.get(defaultOptions);
+    checkInitialSettings({ ...defaultOptions, ...result });
+  } catch (error) {
+    console.error('Failed to load user settings:', error);
+    checkInitialSettings(defaultOptions);
+  }
 }
 
 // 在文件底部添加错误处理

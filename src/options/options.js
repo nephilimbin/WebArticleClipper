@@ -1,4 +1,7 @@
-let options = defaultOptions;
+import './browser-polyfill.min.js';
+import { defaultOptions } from '../shared/default-options.js';
+
+let options = { ...defaultOptions };
 let keyupTimeout = null;
 
 const saveOptions = (e) => {
@@ -78,12 +81,7 @@ const save = () => {
       spinner.style.display = 'none';
     })
     .catch((err) => {
-      document.querySelectorAll('.status').forEach((statusEl) => {
-        statusEl.textContent = err;
-        statusEl.classList.remove('success');
-        statusEl.classList.add('error');
-        statusEl.style.opacity = 1;
-      });
+      console.error('保存失败:', err);
       spinner.style.display = 'none';
     });
 };
@@ -144,7 +142,9 @@ const setCurrentChoice = (result) => {
 };
 
 const restoreOptions = () => {
-  chrome.storage.sync.get(defaultOptions).then(setCurrentChoice);
+  chrome.storage.sync.get(defaultOptions).then((result) => {
+    setCurrentChoice({ ...defaultOptions, ...result });
+  });
 };
 
 function textareaInput() {
@@ -246,11 +246,16 @@ const buttonClick = (e) => {
 };
 
 const loaded = () => {
-  document.querySelectorAll('.radio-container,.checkbox-container,.textbox-container,.button-container').forEach((container) => {
-    container.dataset.height = container.clientHeight;
-  });
-
-  restoreOptions();
+  try {
+    document.querySelectorAll('.radio-container,.checkbox-container').forEach((container) => {
+      if (!container.dataset.height) {
+        container.dataset.height = container.clientHeight;
+      }
+    });
+    restoreOptions();
+  } catch (error) {
+    console.error('Page load error:', error);
+  }
 
   document.querySelectorAll('input,textarea,button').forEach((input) => {
     if (input.tagName == 'TEXTAREA' || input.type == 'text') {

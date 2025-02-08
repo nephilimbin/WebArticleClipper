@@ -107,6 +107,14 @@ export function getSelectionAndDom() {
   };
 }
 
+// 确保函数已附加到window对象
+window.getSelectionAndDom = function () {
+  return {
+    selection: getHTMLOfSelection(),
+    dom: getHTMLOfDocument(),
+  };
+};
+
 // This function must be called in a visible page, such as a browserAction popup
 // or a content script. Calling it in a background page has no effect!
 function copyToClipboard(text) {

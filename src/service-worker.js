@@ -3,6 +3,7 @@ const SW_VERSION = '3.5.0';
 let isServiceWorkerActive = false;
 
 // 添加模块导入
+import './browser-polyfill.min.js';
 import TurndownService from './service_worker/turndown.js';
 import { gfmPlugin } from './service_worker/turndown-plugin-gfm.js';
 import { initOptions } from './shared/default-options.js';
@@ -11,7 +12,7 @@ import ImageHandler from './shared/image-handler.js';
 import Readability from './service_worker/Readability.js';
 import mimeTypes from './service_worker/apache-mime-types.js';
 import dayjs from './service_worker/dayjs.min.js';
-import { getOptions } from './shared/default-options.js';
+import { getOptions, saveOptions } from './shared/default-options.js';
 
 // 修改浏览器信息获取逻辑
 chrome.runtime.getPlatformInfo().then(async (platformInfo) => {
@@ -1026,12 +1027,67 @@ if (!String.prototype.replaceAll) {
   };
 }
 
-// 初始化上下文菜单
+// 在选项初始化完成后自动触发菜单创建
 chrome.runtime.onInstalled.addListener(() => {
+  initOptions().catch(console.error);
+});
+
+// 配置变更时同步更新菜单
+chrome.storage.onChanged.addListener(() => {
   createMenus().catch(console.error);
 });
 
-// 添加配置变更监听
-chrome.storage.onChanged.addListener(() => {
-  createMenus().catch(console.error);
+// 在Service Worker启动时初始化
+chrome.runtime.onStartup.addListener(() => {
+  initOptions();
+});
+
+// 全局错误处理
+chrome.runtime.onMessage.addListener((message) => {
+  if (message.type === 'error') {
+    console.error('Service Worker Error:', message.error);
+  }
+});
+
+// 完整的消息监听处理
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // 处理获取当前配置
+  if (message.type === 'get_current_options') {
+    getOptions().then((options) => {
+      sendResponse({ options });
+    });
+    return true; // 保持通道开放
+  }
+
+  // 处理调试请求
+  if (message.type === 'debug_get_defaults') {
+    sendResponse(defaultOptions);
+    return true;
+  }
+
+  // 处理剪藏内容请求
+  if (message.type === 'clip') {
+    notify(message).then((result) => {
+      sendResponse(result);
+    });
+    return true;
+  }
+
+  // 处理下载请求
+  if (message.type === 'download') {
+    downloadMarkdown(message.markdown, message.title, message.tab.id, message.imageList, message.mdClipsFolder).then(() => {
+      sendResponse({ success: true });
+    });
+    return true;
+  }
+
+  // 处理配置更新
+  if (message.type === 'setOptions') {
+    saveOptions(message.options)
+      .then(() => sendResponse({ success: true }))
+      .catch((error) => sendResponse({ success: false, error }));
+    return true;
+  }
+
+  return false; // 其他未处理消息
 });

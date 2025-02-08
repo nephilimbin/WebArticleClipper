@@ -13,7 +13,7 @@
     "512": "assets/icons/icon-512x512.png",
     "1024": "assets/icons/icon-1024x1024.png"
   },
-  "permissions": ["activeTab", "scripting", "downloads", "storage", "contextMenus"],
+  "permissions": ["scripting", "activeTab", "downloads", "storage", "contextMenus"],
   "host_permissions": ["<all_urls>"],
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
@@ -83,7 +83,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["popup/popup.html", "popup/popup.js", "popup/popup.css", "popup/lib/*.css", "assets/icons/*", "shared/image-handler.js", "options/options.html"],
+      "resources": ["shared/default-options.js", "browser-polyfill.min.js"],
       "matches": ["<all_urls>"]
     }
   ]

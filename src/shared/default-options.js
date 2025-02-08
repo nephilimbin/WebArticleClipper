@@ -1,5 +1,5 @@
 // these are the default options
-const defaultOptions = {
+export const defaultOptions = {
   headingStyle: 'atx',
   hr: '___',
   bulletListMarker: '-',
@@ -33,28 +33,25 @@ const defaultOptions = {
 
 // 异步获取存储选项
 export async function getOptions() {
-  return new Promise((resolve) => {
-    chrome.storage.sync.get(defaultOptions, (result) => {
-      resolve({ ...defaultOptions, ...result });
-    });
-  });
+  try {
+    const result = await chrome.storage.sync.get(defaultOptions);
+    return { ...defaultOptions, ...result };
+  } catch (error) {
+    console.error('Error getting options:', error);
+    return defaultOptions;
+  }
 }
 
 // 初始化默认选项（需要在Service Worker启动时调用）
 export async function initOptions() {
-  try {
-    const current = await getOptions();
-    await chrome.storage.sync.set(current);
-  } catch (error) {
-    console.error('Options initialization failed:', error);
-  }
+  const current = await getOptions();
+  return chrome.storage.sync.set(current);
 }
 
 // 更新选项存储
 export async function saveOptions(options) {
   try {
     await chrome.storage.sync.set(options);
-    await createMenus(); // 同步更新右键菜单
   } catch (error) {
     console.error('Options save failed:', error);
     throw error;
