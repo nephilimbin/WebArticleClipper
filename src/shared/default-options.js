@@ -14,7 +14,7 @@ export const defaultOptions = {
   frontmatter: '---\ncreated: {date:YYYY-MM-DDTHH:mm:ss} (UTC {date:Z})\ntags: [{keywords}]\nsource: {baseURI}\nauthor: {byline}\n---\n\n# {pageTitle}\n\n> ## Excerpt\n> {excerpt}\n\n---',
   backmatter: '',
   title: '{pageTitle}',
-  includeTemplate: true,
+  includeTemplate: false,
   saveAs: false,
   downloadImages: false,
   imagePrefix: '{pageTitle}/',
@@ -34,18 +34,42 @@ export const defaultOptions = {
 // 异步获取存储选项
 export async function getOptions() {
   try {
-    const result = await chrome.storage.sync.get(defaultOptions);
-    return { ...defaultOptions, ...result };
-  } catch (error) {
-    console.error('Error getting options:', error);
+    const stored = await chrome.storage.sync.get(null);
+    console.log('原始存储数据:', stored);
+
+    const merged = {
+      ...defaultOptions,
+      ...stored,
+      mathRendering: {
+        ...defaultOptions.mathRendering,
+        ...(stored.mathRendering || {}),
+      },
+    };
+
+    console.log('合并后配置:', merged);
+    return merged;
+  } catch (err) {
+    console.error('配置加载失败:', err);
     return defaultOptions;
   }
 }
 
 // 初始化默认选项（需要在Service Worker启动时调用）
 export async function initOptions() {
-  const current = await getOptions();
-  return chrome.storage.sync.set(current);
+  try {
+    const current = await getOptions();
+    // 深度合并确保默认值
+    const finalOptions = {
+      ...defaultOptions,
+      ...current,
+      mathRendering: { ...defaultOptions.mathRendering, ...current.mathRendering },
+    };
+    await chrome.storage.sync.set(finalOptions);
+    console.log('存储初始化完成，当前配置:', finalOptions);
+  } catch (error) {
+    console.error('存储初始化失败:', error);
+    throw error;
+  }
 }
 
 // 更新选项存储

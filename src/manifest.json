@@ -21,7 +21,7 @@
   "action": {
     "default_title": "MarkDownload",
     "default_popup": "popup/popup.html",
-    "default_icon": "assets/icons/icon-128x128.png"
+    "default_icon": "assets/icons/icon-32x32.png"
   },
   "background": {
     "service_worker": "service-worker.js",
@@ -29,7 +29,7 @@
   },
   "options_ui": {
     "page": "options/options.html",
-    "open_in_tab": false
+    "open_in_tab": true
   },
   "commands": {
     "_execute_action": {
@@ -83,8 +83,9 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["shared/default-options.js", "browser-polyfill.min.js"],
+      "resources": ["/options/options.html", "/options/options.js", "/options/options.css", "/shared/*", "/browser-polyfill.min.js"],
       "matches": ["<all_urls>"]
     }
-  ]
+  ],
+  "minimum_chrome_version": "88"
 }

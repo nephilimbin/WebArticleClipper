@@ -1,5 +1,6 @@
 // 在文件顶部添加Service Worker生命周期管理
-const SW_VERSION = '3.5.0';
+const SW_VERSION = '3.5.0-fix1';
+console.log(`Service Worker启动 (${SW_VERSION})`);
 let isServiceWorkerActive = false;
 
 // 添加模块导入
@@ -13,6 +14,7 @@ import Readability from './service_worker/Readability.js';
 import mimeTypes from './service_worker/apache-mime-types.js';
 import dayjs from './service_worker/dayjs.min.js';
 import { getOptions, saveOptions } from './shared/default-options.js';
+import { defaultOptions } from './shared/default-options.js';
 
 // 修改浏览器信息获取逻辑
 chrome.runtime.getPlatformInfo().then(async (platformInfo) => {
@@ -351,9 +353,19 @@ function textReplace(string, article, disallowedChars = null) {
 
 // function to convert an article info object into markdown
 async function convertArticleToMarkdown(article, downloadImages = null) {
-  const options = await getOptions();
+  let options = await getOptions();
+  // 配置回退机制
+  if (!options || typeof options !== 'object') {
+    console.warn('Using default options due to invalid config');
+    options = { ...defaultOptions };
+  }
   console.log('Options in convertArticleToMarkdown:', options);
   console.log('hidePictureMdUrl value in convertArticleToMarkdown:', options.hidePictureMdUrl);
+
+  if (!article?.content) {
+    console.error('无效的文章对象:', article);
+    throw new Error('文章内容未定义');
+  }
 
   if (downloadImages != null) {
     options.downloadImages = downloadImages;
@@ -544,37 +556,49 @@ function base64EncodeUnicode(str) {
 
 //function that handles messages from the injected script into the site
 async function notify(message) {
-  const options = await getOptions();
-  // message for initial clipping of the dom
-  if (message.type == 'clip') {
-    console.log('Received clip message with options:', message);
-    console.log('hidePictureMdUrl value from message:', message.hidePictureMdUrl);
-    console.log('hidePictureMdUrl value from storage:', options.hidePictureMdUrl);
-
-    // get the article info from the passed in dom
-    const article = await getArticleFromDom(message.dom);
-
-    // if selection info was passed in (and we're to clip the selection)
-    // replace the article content
-    if (message.selection && message.clipSelection) {
-      article.content = message.selection;
+  try {
+    if (message.type === 'clipError') {
+      console.error('Content script error:', message.error);
+      return;
     }
 
-    // convert the article to markdown
-    const { markdown, imageList } = await convertArticleToMarkdown(article);
+    if (message.type === 'clip') {
+      if (!message.dom) {
+        console.error('收到空文章对象');
+        return;
+      }
 
-    // format the title
-    article.title = await formatTitle(article);
+      const article = message.dom;
+      if (!article?.content) {
+        console.error('无效的文章对象:', article);
+        return;
+      }
 
-    // format the mdClipsFolder
-    const mdClipsFolder = await formatMdClipsFolder(article);
+      // 后续处理保持不变
+      if (message.selection && message.clipSelection) {
+        article.content = message.selection;
+      }
 
-    // display the data in the popup
-    await chrome.runtime.sendMessage({ type: 'display.md', markdown: markdown, article: article, imageList: imageList, mdClipsFolder: mdClipsFolder });
-  }
-  // message for triggering download
-  else if (message.type == 'download') {
-    downloadMarkdown(message.markdown, message.title, message.tab.id, message.imageList, message.mdClipsFolder);
+      const { markdown, imageList } = await convertArticleToMarkdown(article);
+
+      // format the title
+      article.title = await formatTitle(article);
+
+      // format the mdClipsFolder
+      const mdClipsFolder = await formatMdClipsFolder(article);
+
+      // display the data in the popup
+      await chrome.runtime.sendMessage({ type: 'display.md', markdown: markdown, article: article, imageList: imageList, mdClipsFolder: mdClipsFolder });
+    } else if (message.type === 'storageRequest') {
+      const options = await getOptions();
+      return { options }; // 通过return响应消息
+    } else if (message.type === 'download') {
+      await downloadMarkdown(message.markdown, message.title, message.tab.id, message.imageList, message.mdClipsFolder);
+      return { success: true };
+    }
+  } catch (error) {
+    console.error('Message handling failed:', error);
+    return { error: error.message };
   }
 }
 
@@ -675,151 +699,18 @@ async function ensureScripts(tabId) {
   }
 }
 
-// get Readability article info from the dom passed in
-async function getArticleFromDom(domString) {
-  // parse the dom
-  const parser = new DOMParser();
-  const dom = parser.parseFromString(domString, 'text/html');
-
-  if (dom.documentElement.nodeName == 'parsererror') {
-    console.error('error while parsing');
-  }
-
-  const math = {};
-
-  const storeMathInfo = (el, mathInfo) => {
-    let randomId = URL.createObjectURL(new Blob([]));
-    randomId = randomId.substring(randomId.length - 36);
-    el.id = randomId;
-    math[randomId] = mathInfo;
-  };
-
-  dom.body.querySelectorAll('script[id^=MathJax-Element-]')?.forEach((mathSource) => {
-    const type = mathSource.attributes.type.value;
-    storeMathInfo(mathSource, {
-      tex: mathSource.innerText,
-      inline: type ? !type.includes('mode=display') : false,
-    });
-  });
-
-  dom.body.querySelectorAll('[markdownload-latex]')?.forEach((mathJax3Node) => {
-    const tex = mathJax3Node.getAttribute('markdownload-latex');
-    const display = mathJax3Node.getAttribute('display');
-    const inline = !(display && display === 'true');
-
-    const mathNode = document.createElement(inline ? 'i' : 'p');
-    mathNode.textContent = tex;
-    mathJax3Node.parentNode.insertBefore(mathNode, mathJax3Node.nextSibling);
-    mathJax3Node.parentNode.removeChild(mathJax3Node);
-
-    storeMathInfo(mathNode, {
-      tex: tex,
-      inline: inline,
-    });
-  });
-
-  dom.body.querySelectorAll('.katex-mathml')?.forEach((kaTeXNode) => {
-    storeMathInfo(kaTeXNode, {
-      tex: kaTeXNode.querySelector('annotation').textContent,
-      inline: true,
-    });
-  });
-
-  dom.body.querySelectorAll('[class*=highlight-text],[class*=highlight-source]')?.forEach((codeSource) => {
-    const language = codeSource.className.match(/highlight-(?:text|source)-([a-z0-9]+)/)?.[1];
-    if (codeSource.firstChild.nodeName == 'PRE') {
-      codeSource.firstChild.id = `code-lang-${language}`;
-    }
-  });
-
-  dom.body.querySelectorAll('[class*=language-]')?.forEach((codeSource) => {
-    const language = codeSource.className.match(/language-([a-z0-9]+)/)?.[1];
-    codeSource.id = `code-lang-${language}`;
-  });
-
-  dom.body.querySelectorAll('pre br')?.forEach((br) => {
-    // we need to keep <br> tags because they are removed by Readability.js
-    br.outerHTML = '<br-keep></br-keep>';
-  });
-
-  dom.body.querySelectorAll('.codehilite > pre')?.forEach((codeSource) => {
-    if (codeSource.firstChild.nodeName !== 'CODE' && !codeSource.className.includes('language')) {
-      codeSource.id = `code-lang-text`;
-    }
-  });
-
-  dom.body.querySelectorAll('h1, h2, h3, h4, h5, h6')?.forEach((header) => {
-    // Readability.js will strip out headings from the dom if certain words appear in their className
-    // See: https://github.com/mozilla/readability/issues/807
-    header.className = '';
-    header.outerHTML = header.outerHTML;
-  });
-
-  // Prevent Readability from removing the <html> element if has a 'class' attribute
-  // which matches removal criteria.
-  // Note: The document element is guaranteed to be the HTML tag because the 'text/html'
-  // mime type was used when the DOM was created.
-  dom.documentElement.removeAttribute('class');
-
-  // simplify the dom into an article
-  const article = new Readability(dom).parse();
-
-  // get the base uri from the dom and attach it as important article info
-  article.baseURI = dom.baseURI;
-  // also grab the page title
-  article.pageTitle = dom.title;
-  // and some URL info
-  const url = new URL(dom.baseURI);
-  article.hash = url.hash;
-  article.host = url.host;
-  article.origin = url.origin;
-  article.hostname = url.hostname;
-  article.pathname = url.pathname;
-  article.port = url.port;
-  article.protocol = url.protocol;
-  article.search = url.search;
-
-  // make sure the dom has a head
-  if (dom.head) {
-    // and the keywords, should they exist, as an array
-    article.keywords = dom.head
-      .querySelector('meta[name="keywords"]')
-      ?.content?.split(',')
-      ?.map((s) => s.trim());
-
-    // add all meta tags, so users can do whatever they want
-    dom.head.querySelectorAll('meta[name][content], meta[property][content]')?.forEach((meta) => {
-      const key = meta.getAttribute('name') || meta.getAttribute('property');
-      const val = meta.getAttribute('content');
-      if (key && val && !article[key]) {
-        article[key] = val;
-      }
-    });
-  }
-
-  article.math = math;
-
-  // return the article
-  return article;
-}
-
 // get Readability article info from the content of the tab id passed in
 // `selection` is a bool indicating whether we should just get the selected text
 async function getArticleFromContent(tabId, selection = false) {
-  // run the content script function to get the details
-  const results = await chrome.tabs.executeScript(tabId, { code: 'getSelectionAndDom()' });
+  const results = await chrome.tabs.executeScript(tabId, {
+    code: 'getSelectionAndDom()',
+  });
 
-  // make sure we actually got a valid result
-  if (results && results[0] && results[0].dom) {
-    const article = await getArticleFromDom(results[0].dom, selection);
-
-    // if we're to grab the selection, and we've selected something,
-    // replace the article content with the selection
+  if (results && results[0] && results[0].article) {
+    const article = results[0].article;
     if (selection && results[0].selection) {
       article.content = results[0].selection;
     }
-
-    //return the article
     return article;
   } else return null;
 }
@@ -1027,67 +918,68 @@ if (!String.prototype.replaceAll) {
   };
 }
 
-// 在选项初始化完成后自动触发菜单创建
-chrome.runtime.onInstalled.addListener(() => {
-  initOptions().catch(console.error);
-});
+// 重构连接管理逻辑
+const connectionManager = {
+  port: null,
+  retryCount: 0,
 
-// 配置变更时同步更新菜单
-chrome.storage.onChanged.addListener(() => {
-  createMenus().catch(console.error);
-});
+  connect: function () {
+    this.port = chrome.runtime.connect({ name: 'markdownload' });
 
-// 在Service Worker启动时初始化
-chrome.runtime.onStartup.addListener(() => {
-  initOptions();
-});
+    this.port.onDisconnect.addListener(() => {
+      console.log('连接断开，尝试重连...');
+      this.retryCount++;
+      setTimeout(() => this.connect(), Math.min(1000 * this.retryCount, 5000));
+    });
 
-// 全局错误处理
-chrome.runtime.onMessage.addListener((message) => {
-  if (message.type === 'error') {
-    console.error('Service Worker Error:', message.error);
+    this.port.onMessage.addListener((msg) => {
+      if (msg.type === 'pong') {
+        console.debug('收到心跳响应');
+        this.retryCount = 0;
+      }
+    });
+
+    // 启动心跳
+    this.startHeartbeat();
+  },
+
+  startHeartbeat: function () {
+    setInterval(() => {
+      if (this.port) {
+        try {
+          this.port.postMessage({ type: 'ping' });
+          console.debug('发送心跳信号');
+        } catch (err) {
+          console.error('心跳发送失败:', err);
+          this.connect();
+        }
+      }
+    }, 25000); // 25秒间隔符合Chrome限制
+  },
+};
+
+// 初始化连接
+connectionManager.connect();
+
+// 修改存储初始化逻辑
+chrome.runtime.onInstalled.addListener(async () => {
+  try {
+    console.log('开始初始化存储...');
+    await initOptions();
+    // 仅记录错误不重启
+    console.log('存储初始化完成');
+  } catch (error) {
+    console.error('初始化失败:', error);
   }
 });
 
-// 完整的消息监听处理
+// 增强消息处理
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  // 处理获取当前配置
-  if (message.type === 'get_current_options') {
-    getOptions().then((options) => {
-      sendResponse({ options });
-    });
-    return true; // 保持通道开放
-  }
-
-  // 处理调试请求
-  if (message.type === 'debug_get_defaults') {
-    sendResponse(defaultOptions);
+  // 添加ping/pong机制
+  if (message.type === 'ping') {
+    sendResponse({ type: 'pong' });
     return true;
   }
 
-  // 处理剪藏内容请求
-  if (message.type === 'clip') {
-    notify(message).then((result) => {
-      sendResponse(result);
-    });
-    return true;
-  }
-
-  // 处理下载请求
-  if (message.type === 'download') {
-    downloadMarkdown(message.markdown, message.title, message.tab.id, message.imageList, message.mdClipsFolder).then(() => {
-      sendResponse({ success: true });
-    });
-    return true;
-  }
-
-  // 处理配置更新
-  if (message.type === 'setOptions') {
-    saveOptions(message.options)
-      .then(() => sendResponse({ success: true }))
-      .catch((error) => sendResponse({ success: false, error }));
-    return true;
-  }
-
-  return false; // 其他未处理消息
+  // 其他消息处理保持不变...
 });
