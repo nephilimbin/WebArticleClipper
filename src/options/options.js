@@ -1,7 +1,7 @@
 import './browser-polyfill.min.js';
 import { defaultOptions } from '../shared/default-options.js';
 
-let options = { ...defaultOptions };
+let options = defaultOptions;
 let keyupTimeout = null;
 
 const saveOptions = (e) => {
@@ -23,7 +23,6 @@ const saveOptions = (e) => {
     obsidianIntegration: document.querySelector("[name='obsidianIntegration']").checked,
     obsidianVault: document.querySelector("[name='obsidianVault']").value,
     obsidianFolder: document.querySelector("[name='obsidianFolder']").value,
-    clipSelection: document.querySelector("[name='clipSelection']").checked,
 
     headingStyle: getCheckedValue(document.querySelectorAll("input[name='headingStyle']")),
     hr: getCheckedValue(document.querySelectorAll("input[name='hr']")),
@@ -46,23 +45,23 @@ const saveOptions = (e) => {
 const save = () => {
   const spinner = document.getElementById('spinner');
   spinner.style.display = 'block';
-  chrome.storage.sync
+  browser.storage.sync
     .set(options)
     .then(() => {
-      chrome.contextMenus.update('toggle-includeTemplate', {
+      browser.contextMenus.update('toggle-includeTemplate', {
         checked: options.includeTemplate,
       });
       try {
-        chrome.contextMenus.update('tabtoggle-includeTemplate', {
+        browser.contextMenus.update('tabtoggle-includeTemplate', {
           checked: options.includeTemplate,
         });
       } catch {}
 
-      chrome.contextMenus.update('toggle-downloadImages', {
+      browser.contextMenus.update('toggle-downloadImages', {
         checked: options.downloadImages,
       });
       try {
-        chrome.contextMenus.update('tabtoggle-downloadImages', {
+        browser.contextMenus.update('tabtoggle-downloadImages', {
           checked: options.downloadImages,
         });
       } catch {}
@@ -82,7 +81,12 @@ const save = () => {
       spinner.style.display = 'none';
     })
     .catch((err) => {
-      console.error('保存失败:', err);
+      document.querySelectorAll('.status').forEach((statusEl) => {
+        statusEl.textContent = err;
+        statusEl.classList.remove('success');
+        statusEl.classList.add('error');
+        statusEl.style.opacity = 1;
+      });
       spinner.style.display = 'none';
     });
 };
@@ -92,127 +96,63 @@ function hideStatus() {
 }
 
 const setCurrentChoice = (result) => {
-  return new Promise((resolve) => {
-    requestAnimationFrame(() => {
-      try {
-        console.log('开始更新UI元素...');
+  options = result;
 
-        // 修复checkbox处理逻辑
-        const setCheckbox = (selector, value) => {
-          const el = document.querySelector(selector);
-          if (el) {
-            el.checked = Boolean(value);
-            console.log(`设置 ${selector} 状态:`, Boolean(value)); // 添加调试日志
-          } else {
-            console.error('元素未找到:', selector);
-          }
-        };
+  // if browser doesn't support the download api (i.e. Safari)
+  // we have to use contentLink download mode
+  if (!browser.downloads) {
+    options.downloadMode = 'contentLink';
+    document.querySelectorAll("[name='downloadMode']").forEach((el) => (el.disabled = true));
+    document.querySelector('#downloadMode p').innerText = 'The Downloas API is unavailable in this browser.';
+  }
 
-        // 设置表单值
-        const setValue = (selector, value) => {
-          const el = document.querySelector(selector);
-          if (!el) {
-            console.error(`元素未找到: ${selector}`);
-            return;
-          }
-          if (el.type === 'checkbox') {
-            el.checked = Boolean(value);
-          } else {
-            el.value = value || '';
-          }
-        };
+  const downloadImages = options.downloadImages && options.downloadMode == 'downloadsApi';
 
-        // 设置单选按钮
-        const setRadio = (selector, value) => {
-          document.querySelectorAll(selector).forEach((radio) => {
-            radio.checked = radio.value === value;
-          });
-        };
+  if (!downloadImages && (options.imageStyle == 'markdown' || options.imageStyle.startsWith('obsidian'))) {
+    options.imageStyle = 'originalSource';
+  }
 
-        // 应用配置到表单元素
-        setValue("[name='title']", result.title);
-        setValue("[name='frontmatter']", result.frontmatter);
-        setValue("[name='backmatter']", result.backmatter);
-        setValue("[name='disallowedChars']", result.disallowedChars);
-        setCheckbox('#includeTemplate', result.includeTemplate);
-        setValue("[name='saveAs']", result.saveAs);
-        setValue("[name='downloadImages']", result.downloadImages);
-        setValue("[name='hidePictureMdUrl']", result.hidePictureMdUrl);
-        setValue("[name='imagePrefix']", result.imagePrefix);
-        setValue("[name='mdClipsFolder']", result.mdClipsFolder);
-        setValue("[name='turndownEscape']", result.turndownEscape);
-        setValue("[name='contextMenus']", result.contextMenus);
-        setValue("[name='obsidianIntegration']", result.obsidianIntegration);
-        setValue("[name='obsidianVault']", result.obsidianVault);
-        setValue("[name='obsidianFolder']", result.obsidianFolder);
-        setCheckbox('#clipSelection', result.clipSelection);
+  document.querySelector("[name='frontmatter']").value = options.frontmatter;
+  textareaInput.bind(document.querySelector("[name='frontmatter']"))();
+  document.querySelector("[name='backmatter']").value = options.backmatter;
+  textareaInput.bind(document.querySelector("[name='backmatter']"))();
+  document.querySelector("[name='title']").value = options.title;
+  document.querySelector("[name='disallowedChars']").value = options.disallowedChars;
+  document.querySelector("[name='includeTemplate']").checked = options.includeTemplate;
+  document.querySelector("[name='saveAs']").checked = options.saveAs;
+  document.querySelector("[name='downloadImages']").checked = options.downloadImages;
+  document.querySelector("[name='imagePrefix']").value = options.imagePrefix;
+  document.querySelector("[name='mdClipsFolder']").value = result.mdClipsFolder;
+  document.querySelector("[name='turndownEscape']").checked = options.turndownEscape;
+  document.querySelector("[name='contextMenus']").checked = options.contextMenus;
+  document.querySelector("[name='obsidianIntegration']").checked = options.obsidianIntegration;
+  document.querySelector("[name='obsidianVault']").value = options.obsidianVault;
+  document.querySelector("[name='obsidianFolder']").value = options.obsidianFolder;
+  document.querySelector("[name='hidePictureMdUrl']").checked = options.hidePictureMdUrl;
 
-        setRadio("[name='headingStyle']", result.headingStyle);
-        setRadio("[name='hr']", result.hr);
-        setRadio("[name='bulletListMarker']", result.bulletListMarker);
-        setRadio("[name='codeBlockStyle']", result.codeBlockStyle);
-        setRadio("[name='fence']", result.fence);
-        setRadio("[name='emDelimiter']", result.emDelimiter);
-        setRadio("[name='strongDelimiter']", result.strongDelimiter);
-        setRadio("[name='linkStyle']", result.linkStyle);
-        setRadio("[name='linkReferenceStyle']", result.linkReferenceStyle);
-        setRadio("[name='imageStyle']", result.imageStyle);
-        setRadio("[name='imageRefStyle']", result.imageRefStyle);
-        setRadio("[name='downloadMode']", result.downloadMode);
+  setCheckedValue(document.querySelectorAll("[name='headingStyle']"), options.headingStyle);
+  setCheckedValue(document.querySelectorAll("[name='hr']"), options.hr);
+  setCheckedValue(document.querySelectorAll("[name='bulletListMarker']"), options.bulletListMarker);
+  setCheckedValue(document.querySelectorAll("[name='codeBlockStyle']"), options.codeBlockStyle);
+  setCheckedValue(document.querySelectorAll("[name='fence']"), options.fence);
+  setCheckedValue(document.querySelectorAll("[name='emDelimiter']"), options.emDelimiter);
+  setCheckedValue(document.querySelectorAll("[name='strongDelimiter']"), options.strongDelimiter);
+  setCheckedValue(document.querySelectorAll("[name='linkStyle']"), options.linkStyle);
+  setCheckedValue(document.querySelectorAll("[name='linkReferenceStyle']"), options.linkReferenceStyle);
+  setCheckedValue(document.querySelectorAll("[name='imageStyle']"), options.imageStyle);
+  setCheckedValue(document.querySelectorAll("[name='imageRefStyle']"), options.imageRefStyle);
+  setCheckedValue(document.querySelectorAll("[name='downloadMode']"), options.downloadMode);
+  // setCheckedValue(document.querySelectorAll("[name='obsidianPathType']"), options.obsidianPathType);
 
-        options = { ...defaultOptions, ...result };
-        console.log('Loaded options:', options);
-        console.log('Setting UI elements with:', {
-          frontmatter: options.frontmatter,
-          backmatter: options.backmatter,
-          title: options.title,
-        });
-
-        if (!options.downloadMode) {
-          options.downloadMode = defaultOptions.downloadMode;
-          console.warn('Reset invalid downloadMode');
-        }
-
-        const downloadImages = options.downloadImages && options.downloadMode == 'downloadsApi';
-
-        if (!downloadImages && (options.imageStyle == 'markdown' || options.imageStyle.startsWith('obsidian'))) {
-          options.imageStyle = 'originalSource';
-        }
-
-        Object.keys(defaultOptions).forEach((key) => {
-          if (options[key] === undefined) {
-            options[key] = defaultOptions[key];
-          }
-        });
-
-        refereshElements();
-        window.dispatchEvent(new Event('resize'));
-
-        console.log('UI元素更新完成');
-        resolve();
-      } catch (error) {
-        console.error('更新UI时发生错误:', error);
-        resolve();
-      }
-    });
-  });
+  refereshElements();
 };
 
-const restoreOptions = async () => {
-  try {
-    const result = await chrome.storage.sync.get(null);
-    console.log('从存储加载的原始数据:', result);
+const restoreOptions = () => {
+  const onError = (error) => {
+    console.error(error);
+  };
 
-    if (Object.keys(result).length === 0) {
-      console.warn('检测到空存储，初始化默认配置');
-      await chrome.storage.sync.set(defaultOptions);
-      return defaultOptions;
-    }
-    return { ...defaultOptions, ...result };
-  } catch (error) {
-    console.error('配置加载失败，使用默认值:', error);
-    return defaultOptions;
-  }
+  browser.storage.sync.get(defaultOptions).then(setCurrentChoice, onError);
 };
 
 function textareaInput() {
@@ -232,6 +172,9 @@ const refereshElements = () => {
       show(container, options.downloadMode == 'downloadsApi');
     });
 
+  // document.getElementById("obsidianUriGroup").querySelectorAll('.radio-container,.checkbox-container,.textbox-container').forEach(container => {
+  //     show(container, options.downloadMode == 'obsidianUri')
+  // });
   show(document.getElementById('mdClipsFolder'), options.downloadMode == 'downloadsApi');
 
   show(document.getElementById('linkReferenceStyle'), options.linkStyle == 'referenced');
@@ -262,7 +205,7 @@ const inputChange = (e) => {
         let lines = ev.target.result;
         options = JSON.parse(lines);
         setCurrentChoice(options);
-        chrome.contextMenus.removeAll();
+        browser.contextMenus.removeAll();
         createMenus();
         save();
         refereshElements();
@@ -274,10 +217,9 @@ const inputChange = (e) => {
 
       if (key == 'contextMenus') {
         if (value) {
-          chrome.contextMenus.removeAll();
           createMenus();
         } else {
-          chrome.contextMenus.removeAll();
+          browser.contextMenus.removeAll();
         }
       }
 
@@ -293,104 +235,49 @@ const inputKeyup = (e) => {
 };
 
 const buttonClick = (e) => {
-  try {
-    if (e.target.id === 'import') {
-      const fileInput = document.createElement('input');
-      fileInput.type = 'file';
-      fileInput.accept = '.json';
-      fileInput.onchange = async (event) => {
-        const file = event.target.files[0];
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          try {
-            const newOptions = JSON.parse(e.target.result);
-            chrome.storage.sync.set(newOptions);
-            setCurrentChoice(newOptions);
-            console.log('配置导入成功');
-          } catch (error) {
-            console.error('配置导入失败:', error);
-          }
-        };
-        reader.readAsText(file);
-      };
-      fileInput.click();
-    } else if (e.target.id === 'export') {
-      chrome.storage.sync.get(null).then((result) => {
-        const data = JSON.stringify(result, null, 2);
-        const blob = new Blob([data], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `markdownload-config-${new Date().toISOString().slice(0, 10)}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      });
-    }
-  } catch (error) {
-    console.error('按钮操作失败:', error);
+  if (e.target.id == 'import') {
+    document.getElementById('import-file').click();
+  } else if (e.target.id == 'export') {
+    console.log('export');
+    const json = JSON.stringify(options, null, 2);
+    var blob = new Blob([json], { type: 'text/json' });
+    var url = URL.createObjectURL(blob);
+    var d = new Date();
+
+    var datestring = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+    browser.downloads.download({
+      url: url,
+      saveAs: true,
+      filename: `MarkDownload-export-${datestring}.json`,
+    });
   }
 };
 
 const loaded = () => {
-  const init = () => {
-    try {
-      console.log('开始初始化事件监听...');
+  document.querySelectorAll('.radio-container,.checkbox-container,.textbox-container,.button-container').forEach((container) => {
+    container.dataset.height = container.clientHeight;
+  });
 
-      // 绑定表单元素事件
-      document.querySelectorAll('input, textarea').forEach((input) => {
-        input.addEventListener('change', inputChange);
-        input.addEventListener('keyup', inputKeyup);
-      });
+  restoreOptions();
 
-      // 绑定按钮事件
-      document.querySelectorAll('button').forEach((button) => {
-        button.addEventListener('click', buttonClick);
-      });
-
-      // 异步初始化核心逻辑
-      setTimeout(() => {
-        initOptions();
-
-        // 添加就绪状态检测
-        const checkReady = () => {
-          if (document.querySelector("[name='title']").value) {
-            console.log('UI初始化确认完成');
-          } else {
-            setTimeout(checkReady, 50);
-          }
-        };
-        checkReady();
-      }, 0);
-    } catch (error) {
-      console.error('初始化失败:', error);
-    }
-  };
-
-  if (document.readyState === 'complete') {
-    init();
-  } else {
-    document.addEventListener('DOMContentLoaded', init);
-  }
+  document.querySelectorAll('input,textarea,button').forEach((input) => {
+    if (input.tagName == 'TEXTAREA' || input.type == 'text') {
+      input.addEventListener('keyup', inputKeyup);
+    } else if (input.tagName == 'BUTTON') {
+      input.addEventListener('click', buttonClick);
+    } else input.addEventListener('change', inputChange);
+  });
 };
 
-document.addEventListener('DOMContentLoaded', async () => {
-  console.log('DOMContentLoaded事件触发');
-
-  // 添加加载状态检测
-  const loadCheck = setInterval(() => {
-    if (document.readyState === 'complete') {
-      clearInterval(loadCheck);
-      initOptions();
-    }
-  }, 50);
-});
-
+document.addEventListener('DOMContentLoaded', loaded);
 document.querySelectorAll('.save').forEach((el) => el.addEventListener('click', saveOptions));
 document.querySelectorAll('.status').forEach((el) => el.addEventListener('click', hideStatus));
 document.querySelectorAll('.input-sizer > textarea').forEach((el) => el.addEventListener('input', textareaInput));
 
+/// https://www.somacon.com/p143.php
+// return the value of the radio button that is checked
+// return an empty string if none are checked, or
+// there are no radio buttons
 function getCheckedValue(radioObj) {
   if (!radioObj) return '';
   var radioLength = radioObj.length;
@@ -405,6 +292,10 @@ function getCheckedValue(radioObj) {
   return '';
 }
 
+// set the radio button with the given value as being checked
+// do nothing if there are no radio buttons
+// if the given value does not exist, all the radio buttons
+// are reset to unchecked
 function setCheckedValue(radioObj, newValue) {
   if (!radioObj) return;
   var radioLength = radioObj.length;
@@ -419,46 +310,3 @@ function setCheckedValue(radioObj, newValue) {
     }
   }
 }
-
-const initOptions = () => {
-  const init = async () => {
-    try {
-      // 等待所有关键元素加载
-      await new Promise((resolve) => {
-        const checkElements = () => {
-          if (document.getElementById('includeTemplate')) resolve();
-          else setTimeout(checkElements, 50);
-        };
-        checkElements();
-      });
-
-      const result = await restoreOptions();
-      console.log('恢复的配置:', result);
-
-      requestAnimationFrame(() => {
-        setCurrentChoice(result);
-        refereshElements();
-      });
-    } catch (error) {
-      console.error('初始化失败:', error);
-    }
-  };
-  init();
-};
-
-const bindEvents = () => {
-  // 解绑旧事件后重新绑定
-  const importBtn = document.getElementById('import');
-  const newImportBtn = importBtn.cloneNode(true);
-  importBtn.parentNode.replaceChild(newImportBtn, importBtn);
-
-  newImportBtn.addEventListener('click', () => {
-    const fileInput = document.createElement('input');
-    fileInput.type = 'file';
-    fileInput.accept = '.json';
-    fileInput.onchange = handleFileImport;
-    fileInput.click();
-  });
-
-  // 导出按钮同理
-};

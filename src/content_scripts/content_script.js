@@ -1,28 +1,6 @@
-import { addLatexToMathJax3 } from './page_context.js';
-import Readability from '../service_worker/Readability.js';
-
 function notifyExtension() {
-  try {
-    const result = getSelectionAndDom();
-    if (!result?.article?.content) {
-      throw new Error('文章解析失败');
-    }
-    chrome.runtime.sendMessage({
-      type: 'clip',
-      dom: {
-        ...result.article,
-        // 确保可序列化
-        math: JSON.parse(JSON.stringify(result.article.math)),
-      },
-      selection: result.selection,
-    });
-  } catch (error) {
-    console.error('消息发送失败:', error);
-    chrome.runtime.sendMessage({
-      type: 'clipError',
-      error: error.message,
-    });
-  }
+  // send a message that the content should be clipped
+  browser.runtime.sendMessage({ type: 'clip', dom: content });
 }
 
 function getHTMLOfDocument() {
@@ -120,156 +98,12 @@ function getHTMLOfSelection() {
   }
 }
 
-export async function getSelectionAndDom() {
-  try {
-    // 存储可用性检查
-    await new Promise((resolve, reject) => {
-      chrome.storage.sync.get('healthCheck', (result) => {
-        if (chrome.runtime.lastError) {
-          reject(new Error('Storage unavailable'));
-        } else {
-          resolve();
-        }
-      });
-    });
-
-    // 检查存储连接
-    const storageTest = await chrome.storage.sync.get('test');
-    if (chrome.runtime.lastError) {
-      throw new Error('Storage connection failed');
-    }
-
-    const options = await new Promise((resolve) => chrome.storage.sync.get(defaultOptions, resolve));
-
-    const domString = getHTMLOfDocument();
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(domString, 'text/html');
-
-    // 保留原始处理逻辑
-    const math = {};
-    const storeMathInfo = (el, mathInfo) => {
-      const randomId = URL.createObjectURL(new Blob([])).slice(-36);
-      el.id = randomId;
-      math[randomId] = mathInfo;
-    };
-
-    // 处理MathJax元素
-    doc.body.querySelectorAll('script[id^=MathJax-Element-]').forEach((mathSource) => {
-      const type = mathSource.getAttribute('type');
-      storeMathInfo(mathSource, {
-        tex: mathSource.textContent,
-        inline: type ? !type.includes('mode=display') : false,
-      });
-    });
-
-    // 处理自定义数学标记
-    doc.body.querySelectorAll('[markdownload-latex]').forEach((mathNode) => {
-      const tex = mathNode.getAttribute('markdownload-latex');
-      const display = mathNode.getAttribute('display');
-      const newElem = document.createElement(display === 'true' ? 'div' : 'span');
-      newElem.textContent = tex;
-      mathNode.parentNode.replaceChild(newElem, mathNode);
-      storeMathInfo(newElem, { tex, inline: display !== 'true' });
-    });
-
-    // 处理代码块语言标识
-    doc.body.querySelectorAll('[class*="highlight-"], [class*="language-"]').forEach((codeElem) => {
-      const lang = codeElem.className.match(/(highlight-(?:text|source)-|language-)(\w+)/)?.[2];
-      if (lang && codeElem.firstElementChild?.tagName === 'PRE') {
-        codeElem.firstElementChild.id = `code-lang-${lang}`;
-      }
-    });
-
-    // 处理pre标签中的换行
-    doc.body.querySelectorAll('pre br').forEach((br) => {
-      br.outerHTML = '<br-keep></br-keep>';
-    });
-
-    // 清理标题类名
-    doc.body.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach((header) => {
-      header.className = '';
-      header.outerHTML = header.outerHTML;
-    });
-
-    // 清理HTML根元素类
-    doc.documentElement.removeAttribute('class');
-
-    // 使用Readability解析文档
-    const readabilityOptions = {
-      charThreshold: options.charThreshold || 500,
-      nbTopCandidates: options.nbTopCandidates || 5,
-    };
-    const article = new Readability(doc, readabilityOptions).parse();
-
-    // 确保兼容旧版Readability输出结构
-    if (!article.content) {
-      console.error('Readability解析异常，文档结构:', doc);
-      throw new Error('Failed to parse article content');
-    }
-
-    // 添加调试日志
-    console.debug('解析后的文章内容:', {
-      title: article.title,
-      content: article.content.length,
-      baseURI: article.baseURI,
-    });
-
-    // 添加原始处理数据
-    article.math = math;
-    article.baseURI = doc.baseURI;
-    article.pageTitle = doc.title;
-
-    // 添加URL信息
-    const url = new URL(doc.baseURI);
-    Object.assign(article, {
-      hash: url.hash,
-      host: url.host,
-      origin: url.origin,
-      hostname: url.hostname,
-      pathname: url.pathname,
-      port: url.port,
-      protocol: url.protocol,
-      search: url.search,
-    });
-
-    // 提取元数据
-    if (doc.head) {
-      article.keywords = [...doc.head.querySelectorAll('meta[name="keywords"]')].map((meta) => meta?.content?.split(',').map((s) => s.trim())) || [];
-
-      doc.head.querySelectorAll('meta[name][content], meta[property][content]').forEach((meta) => {
-        const key = meta.getAttribute('name') || meta.getAttribute('property');
-        const value = meta.getAttribute('content');
-        if (key && value && !article[key]) {
-          article[key] = value;
-        }
-      });
-    }
-
-    return {
-      selection: getHTMLOfSelection(),
-      article: article,
-    };
-  } catch (error) {
-    console.error('Storage check failed:', error);
-    throw error;
-  }
-}
-
-// 修改window对象暴露的方法
-window.getSelectionAndDom = async function () {
-  const article = new Readability(document).parse();
-  // 添加必要的处理逻辑（同export函数）
-  const url = new URL(document.baseURI);
-  Object.assign(article, {
-    hash: url.hash,
-    host: url.host,
-    // ...其他属性
-  });
+function getSelectionAndDom() {
   return {
     selection: getHTMLOfSelection(),
-    article: article,
+    dom: getHTMLOfDocument(),
   };
-};
+}
 
 // This function must be called in a visible page, such as a browserAction popup
 // or a content script. Calling it in a background page has no effect!
@@ -307,58 +141,50 @@ async function downloadImage(filename, url) {
   }
 }
 
-// MathJax处理函数（原page_context.js内容）
-function addLatexToMathJax3() {
-  // 检查 window.MathJax 是否存在
-  if (typeof window.MathJax === 'undefined') {
-    console.debug('MathJax not found on page');
-    return;
-  }
-
-  // 检查必要的 MathJax 属性
-  if (!window.MathJax?.startup?.document?.math) {
-    console.debug('MathJax not initialized');
-    return;
-  }
-
-  try {
-    for (const math of window.MathJax.startup.document.math) {
-      if (math.typesetRoot && math.math) {
-        math.typesetRoot.setAttribute('markdownload-latex', math.math);
-      }
-    }
-  } catch (error) {
-    console.debug('Error processing MathJax:', error);
-  }
-}
-
+// 修改点：将 MathJax 处理逻辑内联到 content_script
+// 原 page_context.js 的功能已整合到当前文件，符合 MV3 禁止远程代码执行的规范
 function injectMathJaxScript() {
   const script = document.createElement('script');
   script.textContent = `
-    (${addLatexToMathJax3.toString()})(); 
+    function addLatexToMathJax3() {
+      // 完全恢复旧版 page_context.js 的原始逻辑
+      if (typeof window.MathJax === 'undefined') {
+        console.debug('MathJax not found on page');
+        return;
+      }
     
-    // 执行时机处理
+      if (!window.MathJax?.startup?.document?.math) {
+        console.debug('MathJax not initialized');
+        return;
+      }
+    
+      try {
+        for (const math of window.MathJax.startup.document.math) {
+          if (math.typesetRoot && math.math) {
+            math.typesetRoot.setAttribute('markdownload-latex', math.math);
+          }
+        }
+      } catch (error) {
+        console.debug('Error processing MathJax:', error);
+      }
+    }
+
+    // 恢复旧版事件绑定结构
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', addLatexToMathJax3);
     } else {
       addLatexToMathJax3();
     }
   `;
+
+  // 保持安全注入方式
   (document.head || document.documentElement).appendChild(script);
   script.remove();
 }
 
-// 添加消息处理函数
-function handleMessage(message, sender, sendResponse) {
-  if (message.type === 'copyToClipboard') {
-    copyToClipboard(message.text);
-  } else if (message.type === 'downloadMarkdown') {
-    downloadMarkdown(message.filename, message.text);
-  } else if (message.type === 'downloadImage') {
-    downloadImage(message.filename, message.url).then(sendResponse);
-    return true; // 保持消息通道开放
-  }
+// 保持原有事件监听逻辑
+if (document.readyState === 'complete') {
+  injectMathJaxScript();
+} else {
+  window.addEventListener('load', injectMathJaxScript);
 }
-
-// 消息监听器
-chrome.runtime.onMessage.addListener(handleMessage);

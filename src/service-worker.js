@@ -12,7 +12,7 @@ import { createMenus } from './shared/context-menus.js';
 import ImageHandler from './shared/image-handler.js';
 import Readability from './service_worker/Readability.js';
 import mimeTypes from './service_worker/apache-mime-types.js';
-import moment from './service_worker/moment.min.js';
+import dayjs from './service_worker/dayjs.min.js';
 import { getOptions, saveOptions } from './shared/default-options.js';
 import { defaultOptions } from './shared/default-options.js';
 
@@ -330,7 +330,7 @@ function textReplace(string, article, disallowedChars = null) {
   if (matches && matches.forEach) {
     matches.forEach((match) => {
       const format = match.substring(6, match.length - 1);
-      const dateString = moment(now).format(format);
+      const dateString = dayjs(now).format(format);
       string = string.replaceAll(match, dateString);
     });
   }
