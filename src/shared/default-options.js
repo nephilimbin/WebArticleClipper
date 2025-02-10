@@ -29,6 +29,7 @@ export const defaultOptions = {
   hidePictureMdUrl: false,
   mathJaxRendering: true,
   autoSanitize: true,
+  clipSelection: true,
 };
 
 // 异步获取存储选项
@@ -45,6 +46,12 @@ export async function getOptions() {
         ...(stored.mathRendering || {}),
       },
     };
+
+    // 环境兼容性检测
+    if (!chrome.downloads) {
+      merged.downloadMode = 'contentLink';
+      console.warn('下载API不可用，强制使用内容链接模式');
+    }
 
     console.log('合并后配置:', merged);
     return merged;

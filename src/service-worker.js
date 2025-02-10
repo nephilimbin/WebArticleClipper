@@ -12,7 +12,7 @@ import { createMenus } from './shared/context-menus.js';
 import ImageHandler from './shared/image-handler.js';
 import Readability from './service_worker/Readability.js';
 import mimeTypes from './service_worker/apache-mime-types.js';
-import dayjs from './service_worker/dayjs.min.js';
+import moment from './service_worker/moment.min.js';
 import { getOptions, saveOptions } from './shared/default-options.js';
 import { defaultOptions } from './shared/default-options.js';
 
@@ -296,14 +296,7 @@ function getImageFilename(src, options, prependFilePath = true) {
 
 // function to replace placeholder strings with article info
 function textReplace(string, article, disallowedChars = null) {
-  // 使用dayjs替换moment
-  const now = dayjs();
-  const dateRegex = /{date:(.+?)}/g;
-
-  string = string.replace(dateRegex, (match, format) => {
-    return now.format(format);
-  });
-
+  // 原有字段替换逻辑
   for (const key in article) {
     if (article.hasOwnProperty(key) && key != 'content') {
       let s = (article[key] || '') + '';
@@ -330,7 +323,19 @@ function textReplace(string, article, disallowedChars = null) {
     }
   }
 
-  // replace keywords
+  // 将日期处理移到字段替换之后（与原项目一致）
+  const now = new Date();
+  const dateRegex = /{date:(.+?)}/g;
+  const matches = string.match(dateRegex);
+  if (matches && matches.forEach) {
+    matches.forEach((match) => {
+      const format = match.substring(6, match.length - 1);
+      const dateString = moment(now).format(format);
+      string = string.replaceAll(match, dateString);
+    });
+  }
+
+  // 恢复关键字处理逻辑
   const keywordRegex = /{keywords:?(.*)?}/g;
   const keywordMatches = string.match(keywordRegex);
   if (keywordMatches && keywordMatches.forEach) {
@@ -344,7 +349,7 @@ function textReplace(string, article, disallowedChars = null) {
     });
   }
 
-  // replace anything left in curly braces
+  // 原有剩余花括号替换
   const defaultRegex = /{(.*?)}/g;
   string = string.replace(defaultRegex, '');
 
@@ -568,11 +573,7 @@ async function notify(message) {
         return;
       }
 
-      const article = message.dom;
-      if (!article?.content) {
-        console.error('无效的文章对象:', article);
-        return;
-      }
+      const article = await getArticleFromDom(message.dom);
 
       // 后续处理保持不变
       if (message.selection && message.clipSelection) {
@@ -690,29 +691,167 @@ async function toggleSetting(setting, options = null) {
 
 // this function ensures the content script is loaded (and loads it if it isn't)
 async function ensureScripts(tabId) {
-  const results = await chrome.tabs.executeScript(tabId, { code: "typeof getSelectionAndDom === 'function';" });
-  // The content script's last expression will be true if the function
-  // has been defined. If this is not the case, then we need to run
-  // pageScraper.js to define function getSelectionAndDom.
-  if (!results || results[0] !== true) {
-    await chrome.tabs.executeScript(tabId, { file: '/content_scripts/content_script.js' });
+  const results = await chrome.scripting.executeScript({
+    target: { tabId: tabId },
+    func: () => typeof getSelectionAndDom === 'function',
+  });
+
+  if (!results?.[0]?.result) {
+    await chrome.scripting.executeScript({
+      target: { tabId: tabId },
+      files: ['/content_scripts/content_script.js'],
+    });
   }
 }
+// get Readability article info from the dom passed in
+async function getArticleFromDom(domString) {
+  // parse the dom
+  const parser = new DOMParser();
+  const dom = parser.parseFromString(domString, 'text/html');
 
+  if (dom.documentElement.nodeName == 'parsererror') {
+    console.error('error while parsing');
+  }
+
+  const math = {};
+
+  // 修改1：使用crypto.getRandomValues生成随机ID（替代URL.createObjectURL）
+  const generateRandomId = () => {
+    const array = new Uint32Array(1);
+    crypto.getRandomValues(array);
+    return 'math-' + array[0].toString(36);
+  };
+
+  const storeMathInfo = (el, mathInfo) => {
+    const randomId = generateRandomId(); // 使用新的随机ID生成方式
+    el.id = randomId;
+    math[randomId] = mathInfo;
+  };
+
+  // 保留所有数学公式处理逻辑
+  dom.body.querySelectorAll('script[id^=MathJax-Element-]')?.forEach((mathSource) => {
+    const type = mathSource.attributes.type.value;
+    storeMathInfo(mathSource, {
+      tex: mathSource.innerText,
+      inline: type ? !type.includes('mode=display') : false,
+    });
+  });
+
+  // 保留markdownload-latex处理（使用解析后的DOM方法）
+  dom.body.querySelectorAll('[markdownload-latex]')?.forEach((mathJax3Node) => {
+    const tex = mathJax3Node.getAttribute('markdownload-latex');
+    const display = mathJax3Node.getAttribute('display');
+    const inline = !(display && display === 'true');
+
+    // 使用dom的createElement方法
+    const mathNode = dom.createElement(inline ? 'i' : 'p');
+    mathNode.textContent = tex;
+    // 使用解析后DOM的节点操作方法
+    mathJax3Node.parentNode.insertBefore(mathNode, mathJax3Node.nextSibling);
+    mathJax3Node.parentNode.removeChild(mathJax3Node);
+
+    storeMathInfo(mathNode, {
+      tex: tex,
+      inline: inline,
+    });
+  });
+
+  // 保留KaTeX处理
+  dom.body.querySelectorAll('.katex-mathml')?.forEach((kaTeXNode) => {
+    storeMathInfo(kaTeXNode, {
+      tex: kaTeXNode.querySelector('annotation').textContent,
+      inline: true,
+    });
+  });
+
+  // 保留代码高亮处理
+  dom.body.querySelectorAll('[class*=highlight-text],[class*=highlight-source]')?.forEach((codeSource) => {
+    const language = codeSource.className.match(/highlight-(?:text|source)-([a-z0-9]+)/)?.[1];
+    if (codeSource.firstChild.nodeName == 'PRE') {
+      codeSource.firstChild.id = `code-lang-${language}`;
+    }
+  });
+
+  // 保留其他代码块处理
+  dom.body.querySelectorAll('[class*=language-]')?.forEach((codeSource) => {
+    const language = codeSource.className.match(/language-([a-z0-9]+)/)?.[1];
+    codeSource.id = `code-lang-${language}`;
+  });
+
+  // 保留<br>标签处理
+  dom.body.querySelectorAll('pre br')?.forEach((br) => {
+    br.outerHTML = '<br-keep></br-keep>';
+  });
+
+  // 保留代码块预处理
+  dom.body.querySelectorAll('.codehilite > pre')?.forEach((codeSource) => {
+    if (codeSource.firstChild.nodeName !== 'CODE' && !codeSource.className.includes('language')) {
+      codeSource.id = `code-lang-text`;
+    }
+  });
+
+  // 保留标题清理逻辑
+  dom.body.querySelectorAll('h1, h2, h3, h4, h5, h6')?.forEach((header) => {
+    header.className = '';
+    header.outerHTML = header.outerHTML;
+  });
+
+  // 保留根元素清理
+  dom.documentElement.removeAttribute('class');
+
+  // 使用Readability解析
+  const article = new Readability(dom).parse();
+
+  // 保留元数据提取
+  const url = new URL(dom.baseURI);
+  article.baseURI = dom.baseURI;
+  article.pageTitle = dom.title;
+  article.hash = url.hash;
+  article.host = url.host;
+  article.origin = url.origin;
+  article.hostname = url.hostname;
+  article.pathname = url.pathname;
+  article.port = url.port;
+  article.protocol = url.protocol;
+  article.search = url.search;
+
+  // 保留关键词处理
+  if (dom.head) {
+    article.keywords = dom.head
+      .querySelector('meta[name="keywords"]')
+      ?.content?.split(',')
+      ?.map((s) => s.trim());
+
+    dom.head.querySelectorAll('meta[name][content], meta[property][content]')?.forEach((meta) => {
+      const key = meta.getAttribute('name') || meta.getAttribute('property');
+      const val = meta.getAttribute('content');
+      if (key && val && !article[key]) {
+        article[key] = val;
+      }
+    });
+  }
+
+  article.math = math;
+
+  return article;
+}
 // get Readability article info from the content of the tab id passed in
 // `selection` is a bool indicating whether we should just get the selected text
 async function getArticleFromContent(tabId, selection = false) {
-  const results = await chrome.tabs.executeScript(tabId, {
-    code: 'getSelectionAndDom()',
+  // 修改为与原项目一致的逻辑
+  const results = await chrome.scripting.executeScript({
+    target: { tabId: tabId },
+    func: () => getSelectionAndDom(),
   });
 
-  if (results && results[0] && results[0].article) {
-    const article = results[0].article;
-    if (selection && results[0].selection) {
-      article.content = results[0].selection;
+  if (results?.[0]?.result?.dom) {
+    const article = await getArticleFromDom(results[0].result.dom);
+    if (selection && results[0].result.selection) {
+      article.content = results[0].result.selection;
     }
     return article;
-  } else return null;
+  }
+  return null;
 }
 
 // function to apply the title template
@@ -776,8 +915,11 @@ async function copyTabAsMarkdownLink(tab) {
     await ensureScripts(tab.id);
     const article = await getArticleFromContent(tab.id);
     const title = await formatTitle(article);
-    await chrome.tabs.executeScript(tab.id, { code: `copyToClipboard("[${title}](${article.baseURI})")` });
-    // await navigator.clipboard.writeText(`[${title}](${article.baseURI})`);
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: (title, url) => copyToClipboard(`[${title}](${url}`),
+      args: [title, article.baseURI],
+    });
   } catch (error) {
     // This could happen if the extension is not allowed to run code in
     // the page, for example if the tab is a privileged page.
@@ -804,7 +946,11 @@ async function copyTabAsMarkdownLinkAll(tab) {
     }
 
     const markdown = links.join(`\n`);
-    await chrome.tabs.executeScript(tab.id, { code: `copyToClipboard(${JSON.stringify(markdown)})` });
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: (content) => copyToClipboard(content),
+      args: [markdown],
+    });
   } catch (error) {
     // This could happen if the extension is not allowed to run code in
     // the page, for example if the tab is a privileged page.
@@ -832,7 +978,11 @@ async function copySelectedTabAsMarkdownLink(tab) {
     }
 
     const markdown = links.join(`\n`);
-    await chrome.tabs.executeScript(tab.id, { code: `copyToClipboard(${JSON.stringify(markdown)})` });
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: (content) => copyToClipboard(content),
+      args: [markdown],
+    });
   } catch (error) {
     // This could happen if the extension is not allowed to run code in
     // the page, for example if the tab is a privileged page.
@@ -858,9 +1008,17 @@ async function copyMarkdownFromContext(info, tab) {
       options.frontmatter = options.backmatter = '';
       const article = await getArticleFromContent(tab.id, false);
       const { markdown } = turndown(`<a href="${info.linkUrl}">${info.linkText || info.selectionText}</a>`, { ...options, downloadImages: false }, article);
-      await chrome.tabs.executeScript(tab.id, { code: `copyToClipboard(${JSON.stringify(markdown)})` });
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: (content) => copyToClipboard(content),
+        args: [markdown],
+      });
     } else if (info.menuItemId == 'copy-markdown-image') {
-      await chrome.tabs.executeScript(tab.id, { code: `copyToClipboard("![](${info.srcUrl})")` });
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: (url) => copyToClipboard(`![](${url})`),
+        args: [info.srcUrl],
+      });
     } else if (info.menuItemId == 'copy-markdown-obsidian') {
       const article = await getArticleFromContent(tab.id, info.menuItemId == 'copy-markdown-obsidian');
       const title = await formatTitle(article);
@@ -868,7 +1026,11 @@ async function copyMarkdownFromContext(info, tab) {
       const obsidianVault = options.obsidianVault;
       const obsidianFolder = await formatObsidianFolder(article);
       const { markdown } = await convertArticleToMarkdown(article, (downloadImages = false));
-      await chrome.tabs.executeScript(tab.id, { code: `copyToClipboard(${JSON.stringify(markdown)})` });
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: (content) => copyToClipboard(content),
+        args: [markdown],
+      });
       await chrome.tabs.update({ url: 'obsidian://advanced-uri?vault=' + obsidianVault + '&clipboard=true&mode=new&filepath=' + obsidianFolder + generateValidFileName(title) });
     } else if (info.menuItemId == 'copy-markdown-obsall') {
       const article = await getArticleFromContent(tab.id, info.menuItemId == 'copy-markdown-obsall');
@@ -877,12 +1039,20 @@ async function copyMarkdownFromContext(info, tab) {
       const obsidianVault = options.obsidianVault;
       const obsidianFolder = await formatObsidianFolder(article);
       const { markdown } = await convertArticleToMarkdown(article, (downloadImages = false));
-      await chrome.tabs.executeScript(tab.id, { code: `copyToClipboard(${JSON.stringify(markdown)})` });
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: (content) => copyToClipboard(content),
+        args: [markdown],
+      });
       await chrome.tabs.update({ url: 'obsidian://advanced-uri?vault=' + obsidianVault + '&clipboard=true&mode=new&filepath=' + obsidianFolder + generateValidFileName(title) });
     } else {
       const article = await getArticleFromContent(tab.id, info.menuItemId == 'copy-markdown-selection');
       const { markdown } = await convertArticleToMarkdown(article, (downloadImages = false));
-      await chrome.tabs.executeScript(tab.id, { code: `copyToClipboard(${JSON.stringify(markdown)})` });
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: (content) => copyToClipboard(content),
+        args: [markdown],
+      });
     }
   } catch (error) {
     // This could happen if the extension is not allowed to run code in
@@ -922,14 +1092,24 @@ if (!String.prototype.replaceAll) {
 const connectionManager = {
   port: null,
   retryCount: 0,
+  heartbeatInterval: null, // 需要添加interval引用
 
   connect: function () {
+    // 建议添加连接状态检查
+    if (this.port) {
+      this.port.disconnect();
+    }
+
     this.port = chrome.runtime.connect({ name: 'markdownload' });
 
     this.port.onDisconnect.addListener(() => {
       console.log('连接断开，尝试重连...');
+      // 清除旧的心跳定时器
+      if (this.heartbeatInterval) {
+        clearInterval(this.heartbeatInterval);
+      }
       this.retryCount++;
-      setTimeout(() => this.connect(), Math.min(1000 * this.retryCount, 5000));
+      setTimeout(() => this.connect(), Math.min(1000 * this.retryCount, 30000)); // 最大间隔改为30秒更安全
     });
 
     this.port.onMessage.addListener((msg) => {
@@ -939,22 +1119,24 @@ const connectionManager = {
       }
     });
 
-    // 启动心跳
     this.startHeartbeat();
   },
 
   startHeartbeat: function () {
-    setInterval(() => {
+    // 使用固定间隔防止多个定时器
+    if (this.heartbeatInterval) return;
+
+    this.heartbeatInterval = setInterval(() => {
       if (this.port) {
         try {
           this.port.postMessage({ type: 'ping' });
           console.debug('发送心跳信号');
         } catch (err) {
           console.error('心跳发送失败:', err);
-          this.connect();
+          this.connect(); // 触发重连
         }
       }
-    }, 25000); // 25秒间隔符合Chrome限制
+    }, 25000);
   },
 };
 

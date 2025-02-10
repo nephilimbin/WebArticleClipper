@@ -661,6 +661,11 @@ var TurndownService = (function () {
   }
 
   function Node(node, options) {
+    // Service Worker环境下需要特殊处理outerHTML
+    if (typeof window === 'undefined') {
+      node.outerHTML = new XMLSerializer().serializeToString(node);
+    }
+
     node.isBlock = isBlock(node);
     node.isCode = node.nodeName === 'CODE' || node.parentNode.isCode;
     node.isBlank = isBlank(node);
@@ -766,7 +771,13 @@ var TurndownService = (function () {
         return node.isBlock ? '\n\n' : '';
       },
       keepReplacement: function (content, node) {
-        return node.isBlock ? '\n\n' + node.outerHTML + '\n\n' : node.outerHTML;
+        let html;
+        if (typeof window === 'undefined') {
+          html = new XMLSerializer().serializeToString(node);
+        } else {
+          html = node.outerHTML;
+        }
+        return node.isBlock ? '\n\n' + html + '\n\n' : html;
       },
       defaultReplacement: function (content, node) {
         return node.isBlock ? '\n\n' + content + '\n\n' : content;

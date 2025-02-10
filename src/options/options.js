@@ -23,6 +23,7 @@ const saveOptions = (e) => {
     obsidianIntegration: document.querySelector("[name='obsidianIntegration']").checked,
     obsidianVault: document.querySelector("[name='obsidianVault']").value,
     obsidianFolder: document.querySelector("[name='obsidianFolder']").value,
+    clipSelection: document.querySelector("[name='clipSelection']").checked,
 
     headingStyle: getCheckedValue(document.querySelectorAll("input[name='headingStyle']")),
     hr: getCheckedValue(document.querySelectorAll("input[name='hr']")),
@@ -144,6 +145,7 @@ const setCurrentChoice = (result) => {
         setValue("[name='obsidianIntegration']", result.obsidianIntegration);
         setValue("[name='obsidianVault']", result.obsidianVault);
         setValue("[name='obsidianFolder']", result.obsidianFolder);
+        setCheckbox('#clipSelection', result.clipSelection);
 
         setRadio("[name='headingStyle']", result.headingStyle);
         setRadio("[name='hr']", result.hr);
@@ -272,6 +274,7 @@ const inputChange = (e) => {
 
       if (key == 'contextMenus') {
         if (value) {
+          chrome.contextMenus.removeAll();
           createMenus();
         } else {
           chrome.contextMenus.removeAll();
