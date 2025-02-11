@@ -23,7 +23,12 @@ cm.on('cursorActivity', (cm) => {
     if (a.style.display != 'none') a.style.display = 'none';
   }
 });
-document.getElementById('download').addEventListener('click', download);
+const downloadBtn = document.getElementById('download');
+if (downloadBtn) {
+  downloadBtn.addEventListener('click', download);
+} else {
+  console.error('下载按钮元素未找到');
+}
 document.getElementById('downloadSelection').addEventListener('click', downloadSelection);
 
 const defaultOptions = {
@@ -123,7 +128,7 @@ const clipSite = (id) => {
       func: () => window.getSelectionAndDom(),
     })
     .then((result) => {
-      console.log('clipSite脚本执行结果:', result);
+      console.log('clipSite脚本执行结果:', result.result, '&tabid:', id);
       if (result?.[0]?.result) {
         showOrHideClipOption(result[0].result.selection);
         let message = {
@@ -160,60 +165,83 @@ const clipSite = (id) => {
 };
 
 // inject the necessary scripts
-chrome.storage.sync
-  .get(defaultOptions)
-  .then((options) => {
-    checkInitialSettings(options);
+document.addEventListener('DOMContentLoaded', () => {
+  chrome.storage.sync
+    .get(defaultOptions)
+    .then((options) => {
+      checkInitialSettings(options);
 
-    document.getElementById('selected').addEventListener('click', (e) => {
-      e.preventDefault();
-      toggleClipSelection(options);
-    });
-    document.getElementById('document').addEventListener('click', (e) => {
-      e.preventDefault();
-      toggleClipSelection(options);
-    });
-    document.getElementById('includeTemplate').addEventListener('click', (e) => {
-      e.preventDefault();
-      toggleIncludeTemplate(options);
-    });
-    document.getElementById('downloadImages').addEventListener('click', (e) => {
-      e.preventDefault();
-      toggleDownloadImages(options);
-    });
-    document.getElementById('hidePictureMdUrl').addEventListener('click', (e) => {
-      e.preventDefault();
-      toggleHidePictureMdUrl(options);
-    });
+      // 在DOMContentLoaded回调中添加安全检查
+      const bindSafeListener = (id, handler) => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.addEventListener('click', handler);
+        } else {
+          console.warn(`元素 ${id} 未找到`);
+        }
+      };
 
-    return chrome.tabs.query({
-      currentWindow: true,
-      active: true,
-    });
-  })
-  .then((tabs) => {
-    var id = tabs[0].id;
-    var url = tabs[0].url;
-    chrome.scripting
-      .executeScript({
-        target: { tabId: id },
-        files: ['/browser-polyfill.min.js'],
-      })
-      .then(() => {
-        return chrome.scripting.executeScript({
-          target: { tabId: id },
-          files: ['/content_scripts/content_script.js'],
-        });
-      })
-      .then(() => {
-        console.info('Successfully injected MarkDownload content script');
-        return clipSite(id);
-      })
-      .catch((error) => {
-        console.error(error);
-        showError(error);
+      bindSafeListener('selected', (e) => {
+        e.preventDefault();
+        toggleClipSelection(options);
       });
-  });
+
+      bindSafeListener('document', (e) => {
+        e.preventDefault();
+        toggleClipSelection(options);
+      });
+
+      const includeTemplateElement = document.getElementById('includeTemplate');
+      if (includeTemplateElement) {
+        includeTemplateElement.addEventListener('click', (e) => {
+          e.preventDefault();
+          toggleIncludeTemplate(options);
+        });
+      }
+      const downloadImagesElement = document.getElementById('downloadImages');
+      if (downloadImagesElement) {
+        downloadImagesElement.addEventListener('click', (e) => {
+          e.preventDefault();
+          toggleDownloadImages(options);
+        });
+      }
+      const hidePictureMdUrlElement = document.getElementById('hidePictureMdUrl');
+      if (hidePictureMdUrlElement) {
+        hidePictureMdUrlElement.addEventListener('click', (e) => {
+          e.preventDefault();
+          toggleHidePictureMdUrl(options);
+        });
+      }
+
+      return chrome.tabs.query({
+        currentWindow: true,
+        active: true,
+      });
+    })
+    .then((tabs) => {
+      var id = tabs[0].id;
+      var url = tabs[0].url;
+      chrome.scripting
+        .executeScript({
+          target: { tabId: id },
+          files: ['/browser-polyfill.min.js'],
+        })
+        .then(() => {
+          return chrome.scripting.executeScript({
+            target: { tabId: id },
+            files: ['/content_scripts/content_script.js'],
+          });
+        })
+        .then(() => {
+          console.info('Successfully injected MarkDownload content script');
+          return clipSite(id);
+        })
+        .catch((error) => {
+          console.error(error);
+          showError(error);
+        });
+    });
+});
 
 // listen for notifications from the background page
 chrome.runtime.onMessage.addListener(notify);
@@ -272,17 +300,3 @@ function showError(err) {
   document.getElementById('spinner').style.display = 'none';
   cm.setValue(`Error clipping the page\n\n${err}`);
 }
-
-// 在弹出页面的下载按钮点击处理中
-document.getElementById('download-btn').addEventListener('click', async () => {
-  try {
-    await ImageHandler.downloadImages(imageList);
-  } catch (error) {
-    if (error.message.includes('not ready')) {
-      // 添加自动重试机制
-      setTimeout(async () => {
-        await ImageHandler.downloadImages(imageList);
-      }, 500);
-    }
-  }
-});
