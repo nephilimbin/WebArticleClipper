@@ -300,7 +300,7 @@ function textReplace(string, article, disallowedChars = null) {
   for (const key in article) {
     if (article.hasOwnProperty(key) && key != 'content') {
       let s = (article[key] || '') + '';
-      if (s && disallowedChars) s = this.generateValidFileName(s, disallowedChars);
+      if (s && disallowedChars) s = generateValidFileName(s, disallowedChars);
 
       string = string
         .replace(new RegExp('{' + key + '}', 'g'), s)
@@ -406,6 +406,11 @@ async function convertArticleToMarkdown(article, downloadImages = null) {
 
 // function to turn the title into a valid file name
 function generateValidFileName(title, disallowedChars = null) {
+  // 添加参数校验
+  if (typeof title !== 'string') {
+    console.warn('Invalid title type:', typeof title);
+    title = String(title);
+  }
   if (!title) return title;
   else title = title + '';
   // remove < > : " / \ | ? *
@@ -573,12 +578,15 @@ async function notify(message) {
     }
 
     if (message.type === 'clip') {
-      if (!message.dom) {
-        console.error('收到空文章对象');
-        return;
-      }
+      // 使用消息中传递的tabId而不是重新查询
+      const tabId = message.tabId;
+      if (!tabId) throw new Error('缺少tabId参数');
 
-      const article = await getArticleFromDom(message.dom);
+      const article = await getArticleFromDom(message.dom, tabId); // 传递tabId
+
+      if (!article?.content) {
+        throw new Error('(notify)无法解析文章内容');
+      }
 
       // 后续处理保持不变
       if (message.selection && message.clipSelection) {
@@ -603,11 +611,11 @@ async function notify(message) {
       return { success: true };
     }
   } catch (error) {
-    console.error('消息处理失败，完整错误信息:', {
+    console.error('(notify)消息处理失败，完整错误信息:', {
       message: message,
       error: error.stack,
     });
-    console.error('处理消息时发生错误:', error);
+    console.error('(notify)处理消息时发生错误:', error);
     if (chrome.runtime?.id) {
       chrome.runtime.sendMessage({
         type: 'displayError',
@@ -720,64 +728,48 @@ async function ensureScripts(tabId) {
   }
 }
 // get Readability article info from the dom passed in
-async function getArticleFromDom(domString) {
-  console.log('开始解析DOM字符串，长度:', domString.length);
-
+async function getArticleFromDom(domString, tabId) {
+  // 新增tabId参数
   try {
-    // 使用更安全的查询方式
-    const [tab] = await chrome.tabs.query({
-      active: true,
-      currentWindow: true,
-      lastFocusedWindow: true,
+    // 直接使用传入的tabId，不再查询标签页
+    console.log('使用传入的tabId:', tabId);
+
+    const response = await Promise.race([
+      chrome.tabs.sendMessage(tabId, {
+        type: 'parseDOM',
+        domString: domString,
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('消息响应超时')), 5000)),
+    ]);
+
+    console.log('(getArticleFromDom)已收到响应');
+
+    if (!response?.article?.content) {
+      throw new Error('文章内容为空');
+    }
+
+    const article = response.article;
+    console.debug('文章元数据:', {
+      title: article.title,
+      contentLength: article.content.length,
+      baseURI: article.baseURI,
     });
 
-    if (!tab) {
-      // 尝试通过其他方式获取标签页信息
-      const allTabs = await chrome.tabs.query({});
-      console.log(
-        '完整标签页列表:',
-        allTabs.map((t) => ({
-          id: t.id,
-          url: t.url,
-          active: t.active,
-          status: t.status,
-        }))
-      );
-
-      // 创建模拟文章对象保持流程
-      return {
-        title: 'Untitled Document',
-        content: domString,
-        baseURI: window.location.href,
-        math: {},
-        keywords: [],
-      };
+    // 补充必要字段
+    if (article) {
+      console.log('成功解析文章:', article.title);
+      if (!article.math) article.math = {};
+      if (!article.keywords) article.keywords = [];
+    } else {
+      console.warn('收到空文章对象');
     }
-
-    console.log('当前活动标签页详情:', tab);
-
-    // 特权页面特殊处理
-    if (tab.url.startsWith('chrome://')) {
-      console.warn('处理浏览器内部页面，返回模拟数据');
-      return {
-        title: tab.title || 'Browser Page',
-        content: domString,
-        baseURI: tab.url,
-        math: {},
-        keywords: [],
-      };
-    }
-
-    // 保持原有处理逻辑...
+    return article;
   } catch (error) {
-    console.error('标签页处理异常，返回安全数据:', error);
-    return {
-      title: 'Error Page',
-      content: domString,
-      baseURI: 'about:blank',
-      math: {},
-      keywords: [],
-    };
+    console.error('DOM解析失败:', {
+      error: error.message,
+      tabId: tabId, // 显示当前使用的tabId
+    });
+    return null;
   }
 }
 // get Readability article info from the content of the tab id passed in
@@ -1114,3 +1106,31 @@ async function logTabs() {
   console.log('当前所有标签页:', await chrome.tabs.query({}));
 }
 logTabs(); // 在async函数内调用
+
+let retries = 0;
+const maxRetries = 3;
+
+async function sendMessageWithRetry(tabId) {
+  try {
+    return await chrome.tabs.sendMessage(tabId, { type: 'ping' });
+  } catch (error) {
+    if (retries < maxRetries) {
+      retries++;
+      await new Promise((r) => setTimeout(r, 1000));
+      return sendMessageWithRetry(tabId);
+    }
+    throw error;
+  }
+}
+
+let port = null;
+
+async function maintainConnection() {
+  port = chrome.runtime.connect({ name: 'keepalive' });
+  port.onDisconnect.addListener(() => {
+    console.log('连接断开，尝试重连...');
+    setTimeout(maintainConnection, 1000);
+  });
+}
+
+maintainConnection();

@@ -125,16 +125,25 @@ const clipSite = (id) => {
   return chrome.scripting
     .executeScript({
       target: { tabId: id },
-      func: () => window.getSelectionAndDom(),
+      func: () => {
+        try {
+          return window.getSelectionAndDom();
+        } catch (e) {
+          console.error('内容脚本执行异常:', e);
+          return { error: e.message };
+        }
+      },
     })
-    .then((result) => {
-      console.log('clipSite脚本执行结果:', result.result, '&tabid:', id);
-      if (result?.[0]?.result) {
-        showOrHideClipOption(result[0].result.selection);
+    .then((results) => {
+      console.log('clipSite开始执行');
+      if (results?.[0]?.result) {
+        console.debug('(clipSite) DOM内容长度:', results[0].result.dom?.length);
+        console.debug('(clipSite) 选中内容长度:', results[0].result.selection?.length);
+        showOrHideClipOption(results[0].result.selection);
         let message = {
           type: 'clip',
-          dom: result[0].result.dom,
-          selection: result[0].result.selection,
+          dom: results[0].result.dom,
+          selection: results[0].result.selection,
         };
         return chrome.storage.sync
           .get(defaultOptions)
@@ -155,10 +164,12 @@ const clipSite = (id) => {
               ...defaultOptions,
             });
           });
+      } else {
+        console.warn('(clipSite) 未获取到有效结果，可能原因:', results?.[0]?.error);
       }
     })
     .catch((err) => {
-      console.error('脚本执行失败:', err);
+      console.error('(clipSite) 脚本执行完整错误:', err.stack);
       showError(err);
       throw err;
     });
@@ -241,6 +252,26 @@ document.addEventListener('DOMContentLoaded', () => {
           showError(error);
         });
     });
+
+  chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
+    chrome.scripting
+      .executeScript({
+        target: { tabId: tab.id },
+        files: ['content_scripts/content_script.js'],
+      })
+      .then(() => {
+        console.log('内容脚本注入完成，标签页:', tab.id);
+        // 添加注入状态验证
+        chrome.scripting
+          .executeScript({
+            target: { tabId: tab.id },
+            func: () => typeof window.getSelectionAndDom === 'function',
+          })
+          .then((results) => {
+            console.log('内容脚本验证结果:', results[0]?.result);
+          });
+      });
+  });
 });
 
 // listen for notifications from the background page
