@@ -1647,7 +1647,74 @@ _**User**_
 _**Assistant**_
 
 <think>
-好的，我现在需要解决用户提出的关于`chrome.tabs.sendMessage`中`{ timeout: 15000 }`参数在MV3中是否有效的问题。用户指出
+好的，我现在需要解决用户提出的关于`chrome.tabs.sendMessage`中`{ timeout: 15000 }`参数在MV3中是否有效的问题。用户指出这个参数可能不符合MV3的规范，导致问题出现。
+
+首先，我需要确认`chrome.tabs.sendMessage`在Manifest V3中是否支持`timeout`选项。查阅Chrome扩展文档，发现`chrome.tabs.sendMessage`确实不支持`timeout`参数。在MV3中，发送消息时如果需要超时控制，通常需要手动实现，比如使用`Promise.race`来包装一个超时的Promise。
+
+接下来，我需要修改代码，移除无效的`timeout`选项，并添加手动超时处理。原来的代码可能因为使用了不支持的参数而导致错误，所以需要调整这部分逻辑。
+
+然后，考虑如何正确实现超时机制。可以使用`Promise.race`来同时等待消息响应和超时Promise。如果在指定时间内没有收到响应，就抛出超时错误。
+
+此外，还需要确保在超时后取消未完成的请求，避免内存泄漏或意外行为。不过，由于`chrome.tabs.sendMessage`返回的Promise在超时后可能仍然挂起，但通过`Promise.race`，我们可以优先处理超时错误，忽略后续的响应。
+
+最后，测试修改后的代码，确保超时功能正常工作，并且没有引入新的错误。同时，更新相关日志，方便调试超时情况。
+
+总结步骤：
+1. 移除`chrome.tabs.sendMessage`中的`timeout`选项。
+2. 使用`Promise.race`实现手动超时。
+3. 调整错误处理，捕获超时异常。
+4. 更新日志输出，记录超时事件。
+</think>
+
+您完全正确，MV3中`chrome.tabs.sendMessage`确实不支持timeout参数。以下是符合规范的修改方案：
+
+```diff:src/service-worker.js
+async function getArticleFromDom(domString) {
+  try {
+    // ...保持标签页查询逻辑不变...
+
+    // 添加手动超时机制
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('消息响应超时')), 15000)
+    );
+
+    const response = await Promise.race([
+      chrome.tabs.sendMessage(
+        tab.id,
+        {
+          type: 'parseDOM',
+          domString: domString
+        }
+      ),
+      timeoutPromise
+    ]);
+
+    console.log('(getArticleFromDom)已收到响应');
+  } catch (error) {
+    console.error('DOM解析失败:', {
+      error: error.message,
+      // ...其他错误信息...
+      timeout: error.message.includes('超时') // 添加超时标识
+    });
+  }
+}
+```
+
+**修改说明**：
+1. 移除非法参数：删除`{ timeout: 15000 }`选项
+2. 手动实现超时：使用`Promise.race`组合消息发送和超时Promise
+3. 增强错误处理：在日志中添加超时标识
+4. 保持MV3兼容：完全遵循Chrome扩展API规范
+
+这样修改后：
+1. 符合MV3 API规范
+2. 实现15秒超时控制
+3. 明确区分超时和其他错误类型
+4. 不改变原有业务逻辑
+
+建议在控制台观察以下日志验证：
+- 正常响应：`(getArticleFromDom)已收到响应`
+- 超时情况：`消息响应超时`错误信息
 
 ---
 

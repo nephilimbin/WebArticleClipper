@@ -1,3 +1,8 @@
+// console.log('🚀 内容脚本已加载', {
+//   location: window.location.href,
+//   readyState: document.readyState,
+// });
+
 function notifyExtension() {
   // send a message that the content should be clipped
   chrome.runtime.sendMessage({ type: 'clip', dom: content });
@@ -219,26 +224,39 @@ if (document.readyState === 'complete') {
 
 // 修改消息监听器，添加状态验证
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  console.log('📡 内容脚本消息监听器已激活', {
+    url: location.href,
+    readyState: document.readyState,
+  });
+
+  // 添加跨域安全检查
+  if (sender.origin !== chrome.runtime.getURL('').slice(0, -1)) {
+    console.warn('非法消息来源:', sender.origin);
+    return false;
+  }
+
+  console.log('📨 收到消息:', request.type, {
+    tabId: sender.tab?.id,
+    frameId: sender.frameId,
+  });
+
   if (request.type === 'parseDOM') {
-    console.log('(content_script)收到parseDOM请求');
+    console.log('开始解析DOM，内容长度:', request.domString?.length);
+    const startTime = Date.now();
 
-    // 添加DOM验证
-    if (!request.domString || request.domString.length < 100) {
-      console.error('无效的DOM内容', {
-        length: request.domString?.length,
-        preview: request.domString?.slice(0, 100),
-      });
-      return sendResponse({
-        error: 'Invalid DOM content',
-        receivedLength: request.domString?.length,
-      });
-    }
-
+    // 添加异步处理标记
     (async () => {
       try {
         // 步骤1: 创建DOM解析器
         const parser = new DOMParser();
         const dom = parser.parseFromString(request.domString, 'text/html');
+
+        // 新增DOM有效性检查
+        console.debug('解析后的DOM结构:', {
+          title: dom.title,
+          bodyLength: dom.body?.innerHTML?.length,
+          baseURI: dom.baseURI,
+        });
 
         // 步骤2: 错误检查
         if (dom.documentElement.nodeName === 'parsererror') {
@@ -284,8 +302,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         });
 
         // 步骤5: 使用Readability解析文章
-        const article = new Readability(dom).parse();
-        console.log('Readability解析结果:', article);
+        console.debug('Readability解析详情:', {
+          title: article?.title,
+          contentLength: article?.content?.length,
+          excerpt: article?.excerpt?.substring(0, 50),
+        });
 
         // 步骤6: 提取元数据
         const url = new URL(dom.baseURI);
@@ -327,27 +348,49 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
         console.log('DOM解析完成，文章标题:', article.title);
 
+        // 修改Readability解析部分
+        const article = new Readability(dom).parse();
+        if (!article) {
+          throw new Error('Readability解析返回空结果');
+        }
+
+        // 添加必要字段检查
+        const requiredFields = ['title', 'content', 'byline'];
+        requiredFields.forEach((field) => {
+          if (!article[field]) {
+            console.warn(`文章缺少必要字段: ${field}`);
+            article[field] = '';
+          }
+        });
+
         // 添加解析结果验证
         if (!article?.content) {
           console.error('解析结果无效', {
             title: article?.title,
             contentLength: article?.content?.length,
+            domState: dom.documentElement.outerHTML.length,
           });
           throw new Error('文章内容为空');
         }
+
+        // 在解析DOM后添加结构检查
+        if (!dom.body || dom.body.children.length === 0) {
+          throw new Error('无效的DOM结构，body为空');
+        }
+
+        // 在解析前清理干扰元素
+        dom.querySelectorAll('script, style, noscript').forEach((el) => el.remove());
 
         // 添加响应确认
         console.log('(content_script)发送解析结果');
         sendResponse({ article });
       } catch (error) {
-        console.error('解析失败:', error);
-        sendResponse({
-          error: error.message,
-          stack: error.stack,
-        });
+        console.error('解析过程中出错:', error);
+        sendResponse({ error: error.message });
       }
+      console.log(`⏱️ 解析耗时: ${Date.now() - startTime}ms`);
     })();
 
-    return true; // 保持消息通道开放
+    return true; // 保持通道开放
   }
 });

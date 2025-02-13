@@ -121,10 +121,55 @@ const showOrHideClipOption = (selection) => {
   }
 };
 
-const clipSite = (id) => {
+// 修改注入逻辑，增加双重保障
+async function ensureContentScript(tabId) {
+  try {
+    // 方法1：使用manifest声明式注入
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => {
+        try {
+          return typeof getSelectionAndDom === 'function';
+        } catch {
+          return false;
+        }
+      },
+    });
+
+    // 方法2：显式注入作为后备
+    if (!results?.[0]?.result) {
+      console.log('⚠️ 声明式注入失败，尝试显式注入');
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        files: ['/content_scripts/content_script.js'],
+      });
+    }
+
+    // 最终验证
+    const finalCheck = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => {
+        console.log('✅ 内容脚本状态验证');
+        return {
+          loaded: typeof getSelectionAndDom === 'function',
+          readyState: document.readyState,
+        };
+      },
+    });
+
+    console.log('内容脚本最终状态:', finalCheck[0]?.result);
+  } catch (error) {
+    console.error('内容脚本加载失败:', error);
+    throw error;
+  }
+}
+
+// 在clipSite函数中调用
+async function clipSite(tabId) {
+  await ensureContentScript(tabId);
   return chrome.scripting
     .executeScript({
-      target: { tabId: id },
+      target: { tabId: tabId },
       func: () => {
         try {
           return window.getSelectionAndDom();
@@ -137,13 +182,13 @@ const clipSite = (id) => {
     .then((results) => {
       console.log('clipSite开始执行');
       if (results?.[0]?.result) {
-        console.debug('(clipSite) DOM内容长度:', results[0].result.dom?.length);
-        console.debug('(clipSite) 选中内容长度:', results[0].result.selection?.length);
+        console.log('(clipSite) DOM内容长度:', results[0].result.dom?.length);
         showOrHideClipOption(results[0].result.selection);
         let message = {
           type: 'clip',
           dom: results[0].result.dom,
           selection: results[0].result.selection,
+          tabId: tabId,
         };
         return chrome.storage.sync
           .get(defaultOptions)
@@ -173,13 +218,45 @@ const clipSite = (id) => {
       showError(err);
       throw err;
     });
+}
+
+// 添加连接管理器
+const connectionManager = {
+  port: null,
+  retries: 0,
+  maxRetries: 3,
+
+  connect() {
+    this.port = chrome.runtime.connect({
+      name: 'markdownload',
+      includeTlsChannelId: true,
+    });
+
+    this.port.onMessage.addListener((msg) => {
+      if (msg.type === 'ping') {
+        console.log('❤️ 收到服务端心跳');
+        this.port.postMessage({ type: 'pong' });
+      }
+    });
+
+    this.port.onDisconnect.addListener(() => {
+      console.log('🔌 连接断开');
+      if (this.retries < this.maxRetries) {
+        setTimeout(() => this.connect(), 1000 * ++this.retries);
+      }
+    });
+  },
 };
 
 // inject the necessary scripts
 document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('container').style.display = 'flex'; // 强制显示
+  document.getElementById('spinner').style.display = 'none';
+  connectionManager.connect();
   chrome.storage.sync
     .get(defaultOptions)
     .then((options) => {
+      console.log('DOMContentLoaded加载中');
       checkInitialSettings(options);
 
       // 在DOMContentLoaded回调中添加安全检查
@@ -232,6 +309,7 @@ document.addEventListener('DOMContentLoaded', () => {
     .then((tabs) => {
       var id = tabs[0].id;
       var url = tabs[0].url;
+      console.log('DomContentLoaded:', tabs);
       chrome.scripting
         .executeScript({
           target: { tabId: id },
@@ -244,34 +322,44 @@ document.addEventListener('DOMContentLoaded', () => {
           });
         })
         .then(() => {
-          console.info('Successfully injected MarkDownload content script');
+          console.info('Successfully injected MarkDownload content script:', id);
           return clipSite(id);
         })
         .catch((error) => {
           console.error(error);
           showError(error);
         });
+      console.log('DOMContentLoaded结束');
     });
-
+  // 修改注入逻辑，添加错误捕获和路径修正
   chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
     chrome.scripting
       .executeScript({
         target: { tabId: tab.id },
-        files: ['content_scripts/content_script.js'],
+        files: ['/content_scripts/content_script.js'], // 添加斜杠确保根目录路径
       })
       .then(() => {
-        console.log('内容脚本注入完成，标签页:', tab.id);
-        // 添加注入状态验证
+        console.log('✅ 内容脚本已注入');
+        // 添加二次验证
         chrome.scripting
           .executeScript({
             target: { tabId: tab.id },
-            func: () => typeof window.getSelectionAndDom === 'function',
+            func: () => {
+              console.log('🔄 内容脚本函数验证中...');
+              return typeof getSelectionAndDom === 'function';
+            },
           })
-          .then((results) => {
-            console.log('内容脚本验证结果:', results[0]?.result);
+          .then(([result]) => {
+            console.log(`📊 内容脚本验证结果：${result.result ? '成功' : '失败'}`);
           });
+      })
+      .catch((err) => {
+        console.error('❌ 脚本注入失败：', err);
+        showError(`注入失败：${err.message}`);
       });
   });
+
+  // 在popup页面建立连接
 });
 
 // listen for notifications from the background page
@@ -326,8 +414,23 @@ function notify(message) {
 }
 
 function showError(err) {
-  // show the hidden elements
+  // 先显示错误信息再关闭窗口
   document.getElementById('container').style.display = 'flex';
   document.getElementById('spinner').style.display = 'none';
   cm.setValue(`Error clipping the page\n\n${err}`);
+
+  // 添加延迟关闭
+  setTimeout(() => {
+    if (!document.hasFocus()) {
+      // 检查窗口是否仍在前台
+      window.close();
+    }
+  }, 3000); // 3秒后自动关闭
 }
+
+// 添加全局Promise拒绝处理
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('未处理的Promise拒绝:', event.reason);
+  showError(event.reason);
+  event.preventDefault();
+});

@@ -13,8 +13,8 @@
     "512": "assets/icons/icon-512x512.png",
     "1024": "assets/icons/icon-1024x1024.png"
   },
-  "permissions": ["scripting", "activeTab", "downloads", "storage", "contextMenus", "alarms", "tabs"],
-  "host_permissions": ["*://*/*"],
+  "permissions": ["scripting", "activeTab", "downloads", "storage", "contextMenus", "alarms", "tabs", "webNavigation", "webRequest"],
+  "host_permissions": ["*://*/*", "chrome-extension://*/*"],
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
   },
@@ -79,14 +79,16 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
+      "matches": ["*://*/*"],
       "js": ["content_scripts/content_script.js"],
-      "run_at": "document_idle"
+      "run_at": "document_end",
+      "all_frames": true,
+      "match_about_blank": true
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["/options/options.html", "/options/options.js", "/options/options.css", "/shared/*", "/browser-polyfill.min.js"],
+      "resources": ["/options/*", "/shared/*", "/browser-polyfill.min.js", "/popup/*", "/content_scripts/*"],
       "matches": ["<all_urls>"]
     }
   ],

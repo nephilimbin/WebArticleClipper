@@ -1,7 +1,6 @@
 // 在文件顶部添加Service Worker生命周期管理
 const SW_VERSION = '3.5.0-fix1';
 console.log(`Service Worker启动 (${SW_VERSION})`);
-let isServiceWorkerActive = false;
 
 // 添加模块导入
 import './browser-polyfill.min.js';
@@ -729,20 +728,18 @@ async function ensureScripts(tabId) {
 }
 // get Readability article info from the dom passed in
 async function getArticleFromDom(domString, tabId) {
-  // 新增tabId参数
   try {
-    // 直接使用传入的tabId，不再查询标签页
-    console.log('使用传入的tabId:', tabId);
-
     const response = await Promise.race([
       chrome.tabs.sendMessage(tabId, {
         type: 'parseDOM',
         domString: domString,
       }),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('消息响应超时')), 5000)),
+      new Promise(
+        (_, reject) => setTimeout(() => reject(new Error(`响应超时，当前标签状态:${chrome.tabs.get(tabId).then((t) => t.status)}`)), 10000) // 延长至10秒
+      ),
     ]);
 
-    console.log('(getArticleFromDom)已收到响应');
+    console.log('(getArticleFromDom)已收到响应:', response);
 
     if (!response?.article?.content) {
       throw new Error('文章内容为空');
@@ -765,9 +762,11 @@ async function getArticleFromDom(domString, tabId) {
     }
     return article;
   } catch (error) {
-    console.error('DOM解析失败:', {
+    console.error('DOM解析失败详情:', {
+      tabId,
       error: error.message,
-      tabId: tabId, // 显示当前使用的tabId
+      tabStatus: await chrome.tabs.get(tabId).then((t) => t.status),
+      scriptingPermitted: await chrome.scripting.getRegisteredContentScripts(),
     });
     return null;
   }
@@ -1025,58 +1024,26 @@ if (!String.prototype.replaceAll) {
   };
 }
 
-// 重构连接管理逻辑
-const connectionManager = {
-  port: null,
-  retryCount: 0,
-  maxRetries: 5,
-  heartbeatInterval: null,
+// 在service worker中添加连接监听器
+chrome.runtime.onConnect.addListener((port) => {
+  console.log('🔗 新客户端连接');
 
-  connect: function () {
-    if (this.retryCount >= this.maxRetries) {
-      console.error('达到最大重试次数，停止连接');
-      return;
-    }
+  // 启动心跳
+  const heartbeat = setInterval(() => {
+    port.postMessage({ type: 'ping' });
+  }, 2000);
 
-    if (this.port) {
-      this.port.disconnect();
-    }
+  port.onDisconnect.addListener(() => {
+    clearInterval(heartbeat);
+    console.log('客户端主动断开');
+  });
+});
 
-    this.port = chrome.runtime.connect({ name: 'markdownload' });
-
-    this.port.onDisconnect.addListener(() => {
-      console.log('连接断开，尝试重连...');
-      if (this.heartbeatInterval) {
-        clearInterval(this.heartbeatInterval);
-        this.heartbeatInterval = null;
-      }
-      this.retryCount++;
-      setTimeout(() => this.connect(), Math.min(1000 * this.retryCount, 30000));
-    });
-
-    this.startHeartbeat();
-  },
-
-  startHeartbeat: function () {
-    // 使用固定间隔防止多个定时器
-    if (this.heartbeatInterval) return;
-
-    this.heartbeatInterval = setInterval(() => {
-      if (this.port) {
-        try {
-          this.port.postMessage({ type: 'ping' });
-          console.debug('发送心跳信号');
-        } catch (err) {
-          console.error('心跳发送失败:', err);
-          this.connect(); // 触发重连
-        }
-      }
-    }, 25000);
-  },
-};
-
-// 初始化连接
-connectionManager.connect();
+// 修改为使用统一连接管理器
+chrome.runtime.onStartup.addListener(() => {
+  console.log('扩展启动，初始化连接...');
+  connectionManager.connect();
+});
 
 // 修改存储初始化逻辑
 chrome.runtime.onInstalled.addListener(async () => {
@@ -1106,31 +1073,3 @@ async function logTabs() {
   console.log('当前所有标签页:', await chrome.tabs.query({}));
 }
 logTabs(); // 在async函数内调用
-
-let retries = 0;
-const maxRetries = 3;
-
-async function sendMessageWithRetry(tabId) {
-  try {
-    return await chrome.tabs.sendMessage(tabId, { type: 'ping' });
-  } catch (error) {
-    if (retries < maxRetries) {
-      retries++;
-      await new Promise((r) => setTimeout(r, 1000));
-      return sendMessageWithRetry(tabId);
-    }
-    throw error;
-  }
-}
-
-let port = null;
-
-async function maintainConnection() {
-  port = chrome.runtime.connect({ name: 'keepalive' });
-  port.onDisconnect.addListener(() => {
-    console.log('连接断开，尝试重连...');
-    setTimeout(maintainConnection, 1000);
-  });
-}
-
-maintainConnection();

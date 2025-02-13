@@ -533,7 +533,6 @@ async function notify(message) {
   // message for initial clipping of the dom
   if (message.type == 'clip') {
     console.log('Received clip message with options:', message);
-    console.log('hidePictureMdUrl value from message:', message.hidePictureMdUrl);
     console.log('hidePictureMdUrl value from storage:', options.hidePictureMdUrl);
 
     // get the article info from the passed in dom

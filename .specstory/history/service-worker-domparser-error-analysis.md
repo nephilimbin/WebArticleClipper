@@ -1358,7 +1358,208 @@ service-worker.js:610 处理消息时发生错误: Error: 没有找到可用的�
 
 _**Assistant**_
 
+<think>
 
+根据错误日志分析，问题出在Service Worker无法获取当前活动标签页。以下是详细排查步骤：
+
+**1. 标签页查询条件分析**：
+```javascript
+const tabs = await chrome.tabs.query({
+  active: true,
+  currentWindow: true,
+  url: ['<all_urls>'],
+  status: 'complete'
+});
+```
+控制台显示`查询到的有效标签页: Array(0)`，说明查询条件可能过于严格。需要验证：
+
+```javascript
+// 临时添加调试代码
+console.log('当前所有标签页:', await chrome.tabs.query({}));
+console.log('当前窗口活动标签页:', await chrome.tabs.query({active: true, currentWindow: true}));
+```
+
+**2. 权限验证**：
+检查manifest.json是否包含必要权限：
+```json
+{
+  "permissions": [
+    "activeTab",
+    "tabs",
+    "scripting",
+    "storage",
+    "<all_urls>"
+  ],
+  "host_permissions": ["<all_urls>"]
+}
+```
+
+**3. 标签页状态验证**：
+在Service Worker中添加状态检查：
+```javascript
+console.log('当前标签页状态:', {
+  active: tab.active,
+  status: tab.status,
+  url: tab.url,
+  id: tab.id
+});
+```
+
+**4. 特殊页面处理**：
+检查目标页面是否为特殊页面（如chrome://extensions），这些页面可能被过滤：
+```javascript
+if (tab.url.startsWith('chrome://')) {
+  console.warn('忽略Chrome内部页面:', tab.url);
+  return;
+}
+```
+
+**5. 异步时序验证**：
+在popup.js中添加时序日志：
+```javascript
+// 在clipSite函数开头添加
+console.log('开始执行clipSite，标签页ID:', id, '状态:', await chrome.tabs.get(id));
+```
+
+**6. 错误复现步骤**：
+1. 打开普通网页（如https://example.com）
+2. 点击扩展图标
+3. 在控制台执行：
+```javascript
+chrome.tabs.query({active: true, currentWindow: true}, console.log)
+```
+
+**建议的临时调试修改**：
+
+```diff:src/service-worker.js
+async function getArticleFromDom(domString) {
+  console.log('开始解析DOM字符串，长度:', domString.length);
++ console.log('DOM字符串前100字符:', domString.substring(0, 100));
+
+  try {
+    const tabs = await chrome.tabs.query({
+      active: true,
+      currentWindow: true,
+      url: ['<all_urls>'],
+      status: 'complete',
+    });
+
++   console.log('完整查询条件结果:', tabs);
++   console.log('当前窗口所有标签页:', await chrome.tabs.query({currentWindow: true}));
++   console.log('浏览器所有标签页:', await chrome.tabs.query({}));
+
+    if (!tabs || tabs.length === 0) {
+      throw new Error('没有找到可用的网页标签页');
+    }
+```
+
+这些调试日志将帮助确认：
+1. 查询条件是否匹配实际标签页
+2. 标签页状态是否符合预期
+3. 权限配置是否正确
+
+根据调试结果，可能需要调整查询条件为：
+```javascript
+{
+  active: true,
+  currentWindow: true,
+  url: ['*://*/*'] // 更宽松的URL匹配
+}
+```
+
+同时检查Service Worker是否在隐身模式下被禁用，或扩展权限是否被用户手动限制。
+</think>
+
+根据最新的错误日志和代码分析，问题根源在于**标签页查询条件过于严格**。以下是具体原因和解决方案：
+
+### 问题定位
+1. **查询条件冲突**：
+   ```javascript
+   url: ['<all_urls>'],
+   status: 'complete'
+   ```
+   实际可能过滤掉了某些符合条件的页面
+
+2. **权限配置问题**：
+   `manifest.json`缺少`host_permissions`声明
+
+3. **特殊页面处理**：
+   未排除chrome://等内部页面
+
+### 分步修复方案
+
+**1. 修改manifest权限配置**：
+```diff:manifest.json
+{
+  "permissions": [
+    "activeTab",
+    "tabs",
+    "scripting",
+    "storage"
+  ],
++ "host_permissions": ["*://*/*"]
+}
+```
+
+**2. 调整标签页查询条件**：
+```diff:src/service-worker.js
+const tabs = await chrome.tabs.query({
+  active: true,
+  currentWindow: true,
+- url: ['<all_urls>'],
+- status: 'complete'
++ url: '*://*/*' // 更宽松的URL匹配
+});
+```
+
+**3. 添加特殊页面过滤**：
+```javascript:src/service-worker.js
+// 在获取tab后添加
+if (tab.url.startsWith('chrome://') || tab.url.startsWith('edge://')) {
+  throw new Error('不支持浏览器内部页面');
+}
+```
+
+**4. 增强错误日志**：
+```diff:src/service-worker.js
+console.log('查询到的有效标签页:', tabs);
+if (!tabs || tabs.length === 0) {
++ console.warn('当前所有标签页:', await chrome.tabs.query({}));
+  throw new Error('没有找到可用的网页标签页');
+}
+```
+
+**5. 验证步骤**：
+1. 在Chrome地址栏输入：
+   ```
+   chrome://extensions/?id=你的扩展ID
+   ```
+   确认权限列表包含"Host permissions"下的`*://*/*`
+
+2. 在普通网页执行：
+   ```javascript
+   // 控制台输入
+   chrome.tabs.query({
+     active: true,
+     currentWindow: true,
+     url: '*://*/*'
+   }, console.log)
+   ```
+
+3. 检查Service Worker日志：
+   - 确认`完整查询条件结果`包含目标标签页
+   - 确认`当前窗口所有标签页`列表
+
+**6. 临时放宽查询条件测试**：
+```javascript
+// 临时移除所有过滤条件
+const tabs = await chrome.tabs.query({
+  active: true,
+  currentWindow: true
+});
+```
+
+这些修改将解决因过于严格的查询条件导致的标签页获取失败问题。建议按顺序应用修改并观察控制台输出变化。
 
 ---
 
