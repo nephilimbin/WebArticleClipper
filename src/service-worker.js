@@ -570,6 +570,7 @@ function base64EncodeUnicode(str) {
 
 //function that handles messages from the injected script into the site
 async function notify(message) {
+  console.log('(notify)收到消息:', message);
   try {
     if (message.type === 'clipError') {
       console.error('Content script error:', message.error);
@@ -729,15 +730,19 @@ async function ensureScripts(tabId) {
 // get Readability article info from the dom passed in
 async function getArticleFromDom(domString, tabId) {
   try {
-    const response = await Promise.race([
-      chrome.tabs.sendMessage(tabId, {
-        type: 'parseDOM',
-        domString: domString,
-      }),
-      new Promise(
-        (_, reject) => setTimeout(() => reject(new Error(`响应超时，当前标签状态:${chrome.tabs.get(tabId).then((t) => t.status)}`)), 10000) // 延长至10秒
-      ),
-    ]);
+    // const response = await Promise.race([
+    //   chrome.tabs.sendMessage(tabId, {
+    //     type: 'parseDOM',
+    //     domString: domString,
+    //   }),
+    //   new Promise(
+    //     (_, reject) => setTimeout(() => reject(new Error(`响应超时，当前标签状态:${chrome.tabs.get(tabId).then((t) => t.status)}`)), 10000) // 延长至10秒
+    //   ),
+    // ]);
+    const response = await chrome.runtime.sendMessage({
+      type: 'parseDOM',
+      domString: domString,
+    });
 
     console.log('(getArticleFromDom)已收到响应:', response);
 
@@ -765,8 +770,6 @@ async function getArticleFromDom(domString, tabId) {
     console.error('DOM解析失败详情:', {
       tabId,
       error: error.message,
-      tabStatus: await chrome.tabs.get(tabId).then((t) => t.status),
-      scriptingPermitted: await chrome.scripting.getRegisteredContentScripts(),
     });
     return null;
   }

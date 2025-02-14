@@ -1,8 +1,3 @@
-// console.log('🚀 内容脚本已加载', {
-//   location: window.location.href,
-//   readyState: document.readyState,
-// });
-
 function notifyExtension() {
   // send a message that the content should be clipped
   chrome.runtime.sendMessage({ type: 'clip', dom: content });
@@ -223,174 +218,163 @@ if (document.readyState === 'complete') {
 }
 
 // 修改消息监听器，添加状态验证
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  console.log('📡 内容脚本消息监听器已激活', {
-    url: location.href,
-    readyState: document.readyState,
-  });
+// chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+//   console.log('📡 内容脚本消息监听器已激活', {
+//     url: location.href,
+//     readyState: document.readyState,
+//   });
 
-  // 添加跨域安全检查
-  if (sender.origin !== chrome.runtime.getURL('').slice(0, -1)) {
-    console.warn('非法消息来源:', sender.origin);
-    return false;
-  }
+//   if (request.type === 'parseDOM') {
+//     console.log('开始解析DOM，内容长度:', request.domString?.length);
+//     const startTime = Date.now();
 
-  console.log('📨 收到消息:', request.type, {
-    tabId: sender.tab?.id,
-    frameId: sender.frameId,
-  });
+//     // 添加异步处理标记
+//     (async () => {
+//       try {
+//         // 步骤1: 创建DOM解析器
+//         const parser = new DOMParser();
+//         const dom = parser.parseFromString(request.domString, 'text/html');
 
-  if (request.type === 'parseDOM') {
-    console.log('开始解析DOM，内容长度:', request.domString?.length);
-    const startTime = Date.now();
+//         // 新增DOM有效性检查
+//         console.debug('解析后的DOM结构:', {
+//           title: dom.title,
+//           bodyLength: dom.body?.innerHTML?.length,
+//           baseURI: dom.baseURI,
+//         });
 
-    // 添加异步处理标记
-    (async () => {
-      try {
-        // 步骤1: 创建DOM解析器
-        const parser = new DOMParser();
-        const dom = parser.parseFromString(request.domString, 'text/html');
+//         // 步骤2: 错误检查
+//         if (dom.documentElement.nodeName === 'parsererror') {
+//           throw new Error('DOM解析错误');
+//         }
 
-        // 新增DOM有效性检查
-        console.debug('解析后的DOM结构:', {
-          title: dom.title,
-          bodyLength: dom.body?.innerHTML?.length,
-          baseURI: dom.baseURI,
-        });
+//         // 步骤3: 数学公式处理
+//         const math = {};
+//         const generateRandomId = () => {
+//           const array = new Uint32Array(1);
+//           crypto.getRandomValues(array);
+//           return 'math-' + array[0].toString(36);
+//         };
 
-        // 步骤2: 错误检查
-        if (dom.documentElement.nodeName === 'parsererror') {
-          throw new Error('DOM解析错误');
-        }
+//         // 处理MathJax元素
+//         dom.body.querySelectorAll('script[id^=MathJax-Element-]').forEach((mathSource) => {
+//           const type = mathSource.getAttribute('type');
+//           const id = generateRandomId();
+//           mathSource.id = id;
+//           math[id] = {
+//             tex: mathSource.textContent,
+//             inline: type ? !type.includes('mode=display') : false,
+//           };
+//         });
 
-        // 步骤3: 数学公式处理
-        const math = {};
-        const generateRandomId = () => {
-          const array = new Uint32Array(1);
-          crypto.getRandomValues(array);
-          return 'math-' + array[0].toString(36);
-        };
+//         // 处理Latex标记
+//         dom.body.querySelectorAll('[markdownload-latex]').forEach((mathJax3Node) => {
+//           const tex = mathJax3Node.getAttribute('markdownload-latex');
+//           const display = mathJax3Node.getAttribute('display');
+//           const inline = !(display === 'true');
 
-        // 处理MathJax元素
-        dom.body.querySelectorAll('script[id^=MathJax-Element-]').forEach((mathSource) => {
-          const type = mathSource.getAttribute('type');
-          const id = generateRandomId();
-          mathSource.id = id;
-          math[id] = {
-            tex: mathSource.textContent,
-            inline: type ? !type.includes('mode=display') : false,
-          };
-        });
+//           const mathNode = document.createElement(inline ? 'i' : 'p');
+//           mathNode.textContent = tex;
+//           mathJax3Node.parentNode.replaceChild(mathNode, mathJax3Node);
 
-        // 处理Latex标记
-        dom.body.querySelectorAll('[markdownload-latex]').forEach((mathJax3Node) => {
-          const tex = mathJax3Node.getAttribute('markdownload-latex');
-          const display = mathJax3Node.getAttribute('display');
-          const inline = !(display === 'true');
+//           const id = generateRandomId();
+//           math[id] = { tex, inline };
+//         });
 
-          const mathNode = document.createElement(inline ? 'i' : 'p');
-          mathNode.textContent = tex;
-          mathJax3Node.parentNode.replaceChild(mathNode, mathJax3Node);
+//         // 步骤4: 代码块处理
+//         dom.body.querySelectorAll('pre br').forEach((br) => {
+//           br.outerHTML = '<br-keep></br-keep>';
+//         });
 
-          const id = generateRandomId();
-          math[id] = { tex, inline };
-        });
+//         // 步骤5: 使用Readability解析文章
+//         console.debug('Readability解析详情:', {
+//           title: article?.title,
+//           contentLength: article?.content?.length,
+//           excerpt: article?.excerpt?.substring(0, 50),
+//         });
 
-        // 步骤4: 代码块处理
-        dom.body.querySelectorAll('pre br').forEach((br) => {
-          br.outerHTML = '<br-keep></br-keep>';
-        });
+//         // 步骤6: 提取元数据
+//         const url = new URL(dom.baseURI);
+//         article.baseURI = dom.baseURI;
+//         article.pageTitle = dom.title;
+//         article.hash = url.hash;
+//         article.host = url.host;
+//         article.origin = url.origin;
+//         article.hostname = url.hostname;
+//         article.pathname = url.pathname;
+//         article.port = url.port;
+//         article.protocol = url.protocol;
+//         article.search = url.search;
+//         article.math = math;
 
-        // 步骤5: 使用Readability解析文章
-        console.debug('Readability解析详情:', {
-          title: article?.title,
-          contentLength: article?.content?.length,
-          excerpt: article?.excerpt?.substring(0, 50),
-        });
+//         // 步骤7: 关键词提取
+//         const metaKeywords = dom.head.querySelector('meta[name="keywords"]');
+//         if (metaKeywords) {
+//           article.keywords = metaKeywords.content.split(',').map((s) => s.trim());
+//         }
 
-        // 步骤6: 提取元数据
-        const url = new URL(dom.baseURI);
-        article.baseURI = dom.baseURI;
-        article.pageTitle = dom.title;
-        article.hash = url.hash;
-        article.host = url.host;
-        article.origin = url.origin;
-        article.hostname = url.hostname;
-        article.pathname = url.pathname;
-        article.port = url.port;
-        article.protocol = url.protocol;
-        article.search = url.search;
-        article.math = math;
+//         // 补充其他meta标签处理
+//         dom.head.querySelectorAll('meta[name][content], meta[property][content]').forEach((meta) => {
+//           const key = meta.getAttribute('name') || meta.getAttribute('property');
+//           const val = meta.getAttribute('content');
+//           if (key && val && !article[key]) {
+//             article[key] = val;
+//           }
+//         });
 
-        // 步骤7: 关键词提取
-        const metaKeywords = dom.head.querySelector('meta[name="keywords"]');
-        if (metaKeywords) {
-          article.keywords = metaKeywords.content.split(',').map((s) => s.trim());
-        }
+//         // 补充标题清理逻辑
+//         dom.body.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach((header) => {
+//           header.className = '';
+//           header.outerHTML = header.outerHTML;
+//         });
 
-        // 补充其他meta标签处理
-        dom.head.querySelectorAll('meta[name][content], meta[property][content]').forEach((meta) => {
-          const key = meta.getAttribute('name') || meta.getAttribute('property');
-          const val = meta.getAttribute('content');
-          if (key && val && !article[key]) {
-            article[key] = val;
-          }
-        });
+//         // 补充根元素清理
+//         dom.documentElement.removeAttribute('class');
 
-        // 补充标题清理逻辑
-        dom.body.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach((header) => {
-          header.className = '';
-          header.outerHTML = header.outerHTML;
-        });
+//         console.log('DOM解析完成，文章标题:', article.title);
 
-        // 补充根元素清理
-        dom.documentElement.removeAttribute('class');
+//         // 修改Readability解析部分
+//         const article = new Readability(dom).parse();
+//         if (!article) {
+//           throw new Error('Readability解析返回空结果');
+//         }
 
-        console.log('DOM解析完成，文章标题:', article.title);
+//         // 添加必要字段检查
+//         const requiredFields = ['title', 'content', 'byline'];
+//         requiredFields.forEach((field) => {
+//           if (!article[field]) {
+//             console.warn(`文章缺少必要字段: ${field}`);
+//             article[field] = '';
+//           }
+//         });
 
-        // 修改Readability解析部分
-        const article = new Readability(dom).parse();
-        if (!article) {
-          throw new Error('Readability解析返回空结果');
-        }
+//         // 添加解析结果验证
+//         if (!article?.content) {
+//           console.error('解析结果无效', {
+//             title: article?.title,
+//             contentLength: article?.content?.length,
+//             domState: dom.documentElement.outerHTML.length,
+//           });
+//           throw new Error('文章内容为空');
+//         }
 
-        // 添加必要字段检查
-        const requiredFields = ['title', 'content', 'byline'];
-        requiredFields.forEach((field) => {
-          if (!article[field]) {
-            console.warn(`文章缺少必要字段: ${field}`);
-            article[field] = '';
-          }
-        });
+//         // 在解析DOM后添加结构检查
+//         if (!dom.body || dom.body.children.length === 0) {
+//           throw new Error('无效的DOM结构，body为空');
+//         }
 
-        // 添加解析结果验证
-        if (!article?.content) {
-          console.error('解析结果无效', {
-            title: article?.title,
-            contentLength: article?.content?.length,
-            domState: dom.documentElement.outerHTML.length,
-          });
-          throw new Error('文章内容为空');
-        }
+//         // 在解析前清理干扰元素
+//         dom.querySelectorAll('script, style, noscript').forEach((el) => el.remove());
 
-        // 在解析DOM后添加结构检查
-        if (!dom.body || dom.body.children.length === 0) {
-          throw new Error('无效的DOM结构，body为空');
-        }
+//         // 添加响应确认
+//         console.log('(content_script)发送解析结果');
+//         sendResponse({ article });
+//       } catch (error) {
+//         console.error('解析过程中出错:', error);
+//         sendResponse({ error: error.message });
+//       }
+//       console.log(`⏱️ 解析耗时: ${Date.now() - startTime}ms`);
+//     })();
 
-        // 在解析前清理干扰元素
-        dom.querySelectorAll('script, style, noscript').forEach((el) => el.remove());
-
-        // 添加响应确认
-        console.log('(content_script)发送解析结果');
-        sendResponse({ article });
-      } catch (error) {
-        console.error('解析过程中出错:', error);
-        sendResponse({ error: error.message });
-      }
-      console.log(`⏱️ 解析耗时: ${Date.now() - startTime}ms`);
-    })();
-
-    return true; // 保持通道开放
-  }
-});
+//     return true; // 保持通道开放
+//   }
+// });
