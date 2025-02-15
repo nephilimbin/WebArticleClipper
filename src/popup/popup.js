@@ -122,50 +122,7 @@ const showOrHideClipOption = (selection) => {
   }
 };
 
-// 修改注入逻辑，增加双重保障
-async function ensureContentScript(tabId) {
-  try {
-    // 方法1：使用manifest声明式注入
-    const results = await chrome.scripting.executeScript({
-      target: { tabId },
-      func: () => {
-        try {
-          return typeof getSelectionAndDom === 'function';
-        } catch {
-          return false;
-        }
-      },
-    });
-
-    // 方法2：显式注入作为后备
-    if (!results?.[0]?.result) {
-      console.log('⚠️ 声明式注入失败，尝试显式注入');
-      await chrome.scripting.executeScript({
-        target: { tabId },
-        files: ['/content_scripts/content_script.js'],
-      });
-    }
-
-    // 最终验证
-    const finalCheck = await chrome.scripting.executeScript({
-      target: { tabId },
-      func: () => {
-        console.log('✅ 内容脚本状态验证');
-        return {
-          loaded: typeof getSelectionAndDom === 'function',
-          readyState: document.readyState,
-        };
-      },
-    });
-
-    console.log('内容脚本最终状态:', finalCheck[0]?.result);
-  } catch (error) {
-    console.error('内容脚本加载失败:', error);
-    throw error;
-  }
-}
-
-async function handleMessage(request, sender, sendResponse) {
+async function handleParseDOM(request, sender, sendResponse) {
   console.log('📡 内容脚本消息监听器已激活', {
     url: location.href,
     readyState: document.readyState,
@@ -314,11 +271,10 @@ async function handleMessage(request, sender, sendResponse) {
   }
 }
 // 监听消息
-chrome.runtime.onMessage.addListener(handleMessage);
+chrome.runtime.onMessage.addListener(handleParseDOM);
 
 // 在clipSite函数中调用
 async function clipSite(tabId) {
-  await ensureContentScript(tabId);
   return chrome.scripting
     .executeScript({
       target: { tabId: tabId },
@@ -483,35 +439,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       console.log('DOMContentLoaded结束');
     });
-  // 修改注入逻辑，添加错误捕获和路径修正
-  chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
-    chrome.scripting
-      .executeScript({
-        target: { tabId: tab.id },
-        files: ['/content_scripts/content_script.js'], // 添加斜杠确保根目录路径
-      })
-      .then(() => {
-        console.log('✅ 内容脚本已注入');
-        // 添加二次验证
-        chrome.scripting
-          .executeScript({
-            target: { tabId: tab.id },
-            func: () => {
-              console.log('🔄 内容脚本函数验证中...');
-              return typeof getSelectionAndDom === 'function';
-            },
-          })
-          .then(([result]) => {
-            console.log(`📊 内容脚本验证结果：${result.result ? '成功' : '失败'}`);
-          });
-      })
-      .catch((err) => {
-        console.error('❌ 脚本注入失败：', err);
-        showError(`注入失败：${err.message}`);
-      });
-  });
-
-  // 在popup页面建立连接
 });
 
 // listen for notifications from the background page
@@ -579,10 +506,3 @@ function showError(err) {
     }
   }, 3000); // 3秒后自动关闭
 }
-
-// 添加全局Promise拒绝处理
-window.addEventListener('unhandledrejection', (event) => {
-  console.error('未处理的Promise拒绝:', event.reason);
-  showError(event.reason);
-  event.preventDefault();
-});

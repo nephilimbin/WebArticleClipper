@@ -730,15 +730,6 @@ async function ensureScripts(tabId) {
 // get Readability article info from the dom passed in
 async function getArticleFromDom(domString, tabId) {
   try {
-    // const response = await Promise.race([
-    //   chrome.tabs.sendMessage(tabId, {
-    //     type: 'parseDOM',
-    //     domString: domString,
-    //   }),
-    //   new Promise(
-    //     (_, reject) => setTimeout(() => reject(new Error(`响应超时，当前标签状态:${chrome.tabs.get(tabId).then((t) => t.status)}`)), 10000) // 延长至10秒
-    //   ),
-    // ]);
     const response = await chrome.runtime.sendMessage({
       type: 'parseDOM',
       domString: domString,
@@ -1070,9 +1061,3 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   // 其他消息处理保持不变...
 });
-
-// 正确使用方式示例
-async function logTabs() {
-  console.log('当前所有标签页:', await chrome.tabs.query({}));
-}
-logTabs(); // 在async函数内调用
