@@ -1,14 +1,13 @@
-// 模块导入路径修正
 import ImageHandler from '../shared/image-handler.js';
 import Readability from '../service_worker/Readability.js';
+import TurndownService from '../service_worker/turndown.js';
+import { gfmPlugin } from '../service_worker/turndown-plugin-gfm.js';
 
-// default variables
 var selectedText = null;
 var imageList = null;
 var mdClipsFolder = '';
 
 const darkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
-// set up event handlers
 const cm = CodeMirror.fromTextArea(document.getElementById('md'), {
   theme: darkMode ? 'xq-dark' : 'xq-light',
   mode: 'markdown',
@@ -133,10 +132,8 @@ async function handleParseDOM(request, sender, sendResponse) {
     console.log('开始解析DOM，内容长度:', request.domString?.length);
     const startTime = Date.now();
     const domString = request.domString;
-    // 添加异步处理标记
     (async () => {
       try {
-        // parse the dom
         const parser = new DOMParser();
         const dom = parser.parseFromString(domString, 'text/html');
 
@@ -197,7 +194,6 @@ async function handleParseDOM(request, sender, sendResponse) {
         });
 
         dom.body.querySelectorAll('pre br')?.forEach((br) => {
-          // we need to keep <br> tags because they are removed by Readability.js
           br.outerHTML = '<br-keep></br-keep>';
         });
 
@@ -208,26 +204,16 @@ async function handleParseDOM(request, sender, sendResponse) {
         });
 
         dom.body.querySelectorAll('h1, h2, h3, h4, h5, h6')?.forEach((header) => {
-          // Readability.js will strip out headings from the dom if certain words appear in their className
-          // See: https://github.com/mozilla/readability/issues/807
           header.className = '';
           header.outerHTML = header.outerHTML;
         });
 
-        // Prevent Readability from removing the <html> element if has a 'class' attribute
-        // which matches removal criteria.
-        // Note: The document element is guaranteed to be the HTML tag because the 'text/html'
-        // mime type was used when the DOM was created.
         dom.documentElement.removeAttribute('class');
 
-        // simplify the dom into an article
         const article = new Readability(dom).parse();
 
-        // get the base uri from the dom and attach it as important article info
         article.baseURI = dom.baseURI;
-        // also grab the page title
         article.pageTitle = dom.title;
-        // and some URL info
         const url = new URL(dom.baseURI);
         article.hash = url.hash;
         article.host = url.host;
@@ -238,15 +224,12 @@ async function handleParseDOM(request, sender, sendResponse) {
         article.protocol = url.protocol;
         article.search = url.search;
 
-        // make sure the dom has a head
         if (dom.head) {
-          // and the keywords, should they exist, as an array
           article.keywords = dom.head
             .querySelector('meta[name="keywords"]')
             ?.content?.split(',')
             ?.map((s) => s.trim());
 
-          // add all meta tags, so users can do whatever they want
           dom.head.querySelectorAll('meta[name][content], meta[property][content]')?.forEach((meta) => {
             const key = meta.getAttribute('name') || meta.getAttribute('property');
             const val = meta.getAttribute('content');
@@ -257,7 +240,6 @@ async function handleParseDOM(request, sender, sendResponse) {
         }
         article.math = math;
 
-        // 添加响应确认
         console.log('(content_script)发送解析结果');
         sendResponse({ article });
       } catch (error) {
@@ -267,10 +249,9 @@ async function handleParseDOM(request, sender, sendResponse) {
       console.log(`⏱️ 解析耗时: ${Date.now() - startTime}ms`);
     })();
 
-    return true; // 保持通道开放
+    return true;
   }
 }
-// 监听消息
 chrome.runtime.onMessage.addListener(handleParseDOM);
 
 // 在clipSite函数中调用
@@ -356,9 +337,8 @@ const connectionManager = {
   },
 };
 
-// inject the necessary scripts
 document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('container').style.display = 'flex'; // 强制显示
+  document.getElementById('container').style.display = 'flex';
   document.getElementById('spinner').style.display = 'none';
   connectionManager.connect();
   chrome.storage.sync
@@ -367,7 +347,6 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log('DOMContentLoaded加载中');
       checkInitialSettings(options);
 
-      // 在DOMContentLoaded回调中添加安全检查
       const bindSafeListener = (id, handler) => {
         const el = document.getElementById(id);
         if (el) {
@@ -472,37 +451,279 @@ async function downloadSelection(e) {
   }
 }
 
-//function that handles messages from the injected script into the site
 function notify(message) {
-  // message for displaying markdown
-  if (message.type == 'display.md') {
-    // set the values from the message
-    //document.getElementById("md").value = message.markdown;
-    cm.setValue(message.markdown);
+  if (message.type === 'processMarkdownResult') {
+    const { markdown, imageList } = message.result;
+
+    cm.setValue(markdown);
     document.getElementById('title').value = message.article.title;
-    imageList = message.imageList;
+    imageList = imageList;
     mdClipsFolder = message.mdClipsFolder;
 
-    // show the hidden elements
     document.getElementById('container').style.display = 'flex';
     document.getElementById('spinner').style.display = 'none';
-    // focus the download button
     document.getElementById('download').focus();
     cm.refresh();
   }
 }
 
 function showError(err) {
-  // 先显示错误信息再关闭窗口
   document.getElementById('container').style.display = 'flex';
   document.getElementById('spinner').style.display = 'none';
   cm.setValue(`Error clipping the page\n\n${err}`);
 
-  // 添加延迟关闭
   setTimeout(() => {
     if (!document.hasFocus()) {
-      // 检查窗口是否仍在前台
       window.close();
     }
-  }, 3000); // 3秒后自动关闭
+  }, 3000);
+}
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.type === 'processMarkdown') {
+    (async () => {
+      try {
+        const result = turndownProcessing(request.content, request.options, request.article);
+
+        sendResponse({
+          type: 'processMarkdownResult',
+          result: result,
+        });
+      } catch (error) {
+        sendResponse({
+          type: 'error',
+          error: error.message,
+        });
+      }
+    })();
+    return true;
+  }
+});
+
+TurndownService.prototype.defaultEscape = TurndownService.prototype.escape;
+
+function turndownProcessing(content, options, article) {
+  console.log('Options in turndown:', options);
+  console.log('hidePictureMdUrl value in turndown:', options.hidePictureMdUrl);
+
+  if (options.turndownEscape) TurndownService.prototype.escape = TurndownService.prototype.defaultEscape;
+  else TurndownService.prototype.escape = (s) => s;
+
+  var turndownService = new TurndownService(options);
+
+  turndownService.use(gfmPlugin);
+
+  turndownService.keep(['iframe', 'sub', 'sup', 'u', 'ins', 'del', 'small', 'big']);
+
+  let imageList = {};
+  turndownService.addRule('images', {
+    filter: function (node, tdopts) {
+      if (node.nodeName == 'IMG' && node.getAttribute('src')) {
+        let src = node.getAttribute('src');
+        const validatedSrc = validateUri(src, article.baseURI);
+        node.setAttribute('src', validatedSrc);
+
+        if (options.downloadImages) {
+          let imageFilename = getImageFilename(validatedSrc, options, false);
+          if (!imageList[validatedSrc] || imageList[validatedSrc] != imageFilename) {
+            let i = 1;
+            while (Object.values(imageList).includes(imageFilename)) {
+              const parts = imageFilename.split('.');
+              if (i == 1) parts.splice(parts.length - 1, 0, i++);
+              else parts.splice(parts.length - 2, 1, i++);
+              imageFilename = parts.join('.');
+            }
+            imageList[validatedSrc] = imageFilename;
+          }
+        }
+
+        if (options.hidePictureMdUrl) {
+          return true;
+        }
+      }
+      return node.nodeName === 'IMG';
+    },
+    replacement: function (content, node, tdopts) {
+      if (options.hidePictureMdUrl) {
+        return '';
+      }
+      var alt = node.alt || '';
+      var src = node.getAttribute('src') || '';
+      var title = node.title || '';
+      var titlePart = title ? ' "' + title + '"' : '';
+      return src ? '![' + alt + ']' + '(' + src + titlePart + ')' : '';
+    },
+  });
+
+  turndownService.addRule('links', {
+    filter: (node, tdopts) => {
+      if (node.nodeName == 'A' && node.getAttribute('href')) {
+        const href = node.getAttribute('href');
+        const validatedHref = validateUri(href, article.baseURI);
+        node.setAttribute('href', validatedHref);
+
+        const img = node.querySelector('img');
+        if (img) {
+          const src = img.getAttribute('src');
+          if (options.downloadImages && src) {
+            const validatedSrc = validateUri(src, article.baseURI);
+            let imageFilename = getImageFilename(validatedSrc, options, false);
+            if (!imageList[validatedSrc] || imageList[validatedSrc] != imageFilename) {
+              let i = 1;
+              while (Object.values(imageList).includes(imageFilename)) {
+                const parts = imageFilename.split('.');
+                if (i == 1) parts.splice(parts.length - 1, 0, i++);
+                else parts.splice(parts.length - 2, 1, i++);
+                imageFilename = parts.join('.');
+              }
+              imageList[validatedSrc] = imageFilename;
+            }
+          }
+
+          if (options.hidePictureMdUrl) {
+            return true;
+          }
+        }
+
+        return options.linkStyle == 'stripLinks';
+      }
+      return false;
+    },
+    replacement: (content, node, tdopts) => {
+      const hasImage = node.querySelector('img');
+      if (hasImage && options.hidePictureMdUrl) {
+        return '';
+      }
+      if (hasImage) {
+        const img = node.querySelector('img');
+        const alt = img.alt || '';
+        const href = node.getAttribute('href');
+        const title = img.title || '';
+        const titlePart = title ? ' "' + title + '"' : '';
+        return '![' + alt + '](' + href + titlePart + ')';
+      }
+      if (options.linkStyle == 'stripLinks') {
+        return content;
+      }
+      var href = node.getAttribute('href');
+      var title = node.title ? ' "' + node.title + '"' : '';
+      if (!content || content.trim() === '') {
+        content = href;
+      }
+      return '[' + content + '](' + href + title + ')';
+    },
+  });
+
+  turndownService.addRule('mathjax', {
+    filter(node, options) {
+      return article.math.hasOwnProperty(node.id);
+    },
+    replacement(content, node, options) {
+      const math = article.math[node.id];
+      let tex = math.tex.trim().replaceAll('\xa0', '');
+
+      if (math.inline) {
+        tex = tex.replaceAll('\n', ' ');
+        return `$${tex}$`;
+      } else return `$$\n${tex}\n$$`;
+    },
+  });
+
+  function repeat(character, count) {
+    return Array(count + 1).join(character);
+  }
+
+  function convertToFencedCodeBlock(node, options) {
+    node.innerHTML = node.innerHTML.replaceAll('<br-keep></br-keep>', '<br>');
+    const langMatch = node.id?.match(/code-lang-(.+)/);
+    const language = langMatch?.length > 0 ? langMatch[1] : '';
+
+    const code = node.innerText;
+
+    const fenceChar = options.fence.charAt(0);
+    let fenceSize = 3;
+    const fenceInCodeRegex = new RegExp('^' + fenceChar + '{3,}', 'gm');
+
+    let match;
+    while ((match = fenceInCodeRegex.exec(code))) {
+      if (match[0].length >= fenceSize) {
+        fenceSize = match[0].length + 1;
+      }
+    }
+
+    const fence = repeat(fenceChar, fenceSize);
+
+    return '\n\n' + fence + language + '\n' + code.replace(/\n$/, '') + '\n' + fence + '\n\n';
+  }
+
+  turndownService.addRule('fencedCodeBlock', {
+    filter: function (node, options) {
+      return options.codeBlockStyle === 'fenced' && node.nodeName === 'PRE' && node.firstChild && node.firstChild.nodeName === 'CODE';
+    },
+    replacement: function (content, node, options) {
+      return convertToFencedCodeBlock(node.firstChild, options);
+    },
+  });
+
+  turndownService.addRule('pre', {
+    filter: (node, tdopts) => {
+      return node.nodeName == 'PRE' && (!node.firstChild || node.firstChild.nodeName != 'CODE') && !node.querySelector('img');
+    },
+    replacement: (content, node, tdopts) => {
+      return convertToFencedCodeBlock(node, tdopts);
+    },
+  });
+
+  let markdown = options.frontmatter + turndownService.turndown(content) + options.backmatter;
+  console.log('Final markdown:', markdown);
+
+  markdown = markdown.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f\u00ad\u061c\u200b-\u200f\u2028\u2029\ufeff\ufff9-\ufffc]/g, '');
+
+  return { markdown: markdown, imageList: imageList };
+}
+
+function cleanAttribute(attribute) {
+  return attribute ? attribute.replace(/(\n+\s*)+/g, '\n') : '';
+}
+
+function validateUri(href, baseURI) {
+  try {
+    new URL(href);
+  } catch {
+    const baseUri = new URL(baseURI);
+
+    if (href.startsWith('/')) {
+      href = baseUri.origin + href;
+    } else {
+      href = baseUri.href + (baseUri.href.endsWith('/') ? '/' : '') + href;
+    }
+  }
+  return href;
+}
+
+function getImageFilename(src, options, prependFilePath = true) {
+  const slashPos = src.lastIndexOf('/');
+  const queryPos = src.indexOf('?');
+  let filename = src.substring(slashPos + 1, queryPos > 0 ? queryPos : src.length);
+
+  let imagePrefix = options.imagePrefix || '';
+
+  if (prependFilePath && options.title.includes('/')) {
+    imagePrefix = options.title.substring(0, options.title.lastIndexOf('/') + 1) + imagePrefix;
+  } else if (prependFilePath) {
+    imagePrefix = options.title + (imagePrefix.startsWith('/') ? '' : '/') + imagePrefix;
+  }
+
+  if (filename.includes(';base64,')) {
+    filename = 'image.' + filename.substring(0, filename.indexOf(';'));
+  }
+
+  let extension = filename.substring(filename.lastIndexOf('.'));
+  if (extension == filename) {
+    filename = filename + '.idunno';
+  }
+
+  filename = generateValidFileName(filename, options.disallowedChars);
+
+  return imagePrefix + filename;
 }

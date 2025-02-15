@@ -4,8 +4,6 @@ console.log(`Service Worker启动 (${SW_VERSION})`);
 
 // 添加模块导入
 import './browser-polyfill.min.js';
-import TurndownService from './service_worker/turndown.js';
-import { gfmPlugin } from './service_worker/turndown-plugin-gfm.js';
 import { initOptions } from './shared/default-options.js';
 import { createMenus } from './shared/context-menus.js';
 import ImageHandler from './shared/image-handler.js';
@@ -27,270 +25,24 @@ chrome.runtime.onMessage.addListener(notify);
 // create context menus
 createMenus();
 
-// 在类外部扩展原型方法
-TurndownService.prototype.defaultEscape = TurndownService.prototype.escape;
-
 // function to convert the article content to markdown using Turndown
-function turndown(content, options, article) {
-  console.log('Options in turndown:', options);
-  console.log('hidePictureMdUrl value in turndown:', options.hidePictureMdUrl);
-
-  if (options.turndownEscape) TurndownService.prototype.escape = TurndownService.prototype.defaultEscape;
-  else TurndownService.prototype.escape = (s) => s;
-
-  var turndownService = new TurndownService(options);
-
-  // 应用GFM插件
-  turndownService.use(gfmPlugin);
-
-  turndownService.keep(['iframe', 'sub', 'sup', 'u', 'ins', 'del', 'small', 'big']);
-
-  let imageList = {};
-  // add an image rule
-  turndownService.addRule('images', {
-    filter: function (node, tdopts) {
-      // if we're looking at an img node with a src
-      if (node.nodeName == 'IMG' && node.getAttribute('src')) {
-        // get the original src
-        let src = node.getAttribute('src');
-        // set the new src
-        const validatedSrc = validateUri(src, article.baseURI);
-        node.setAttribute('src', validatedSrc);
-
-        // 总是处理图片下载，不受 hidePictureMdUrl 影响
-        if (options.downloadImages) {
-          // generate a file name for the image
-          let imageFilename = getImageFilename(validatedSrc, options, false);
-          if (!imageList[validatedSrc] || imageList[validatedSrc] != imageFilename) {
-            // if the imageList already contains this file, add a number to differentiate
-            let i = 1;
-            while (Object.values(imageList).includes(imageFilename)) {
-              const parts = imageFilename.split('.');
-              if (i == 1) parts.splice(parts.length - 1, 0, i++);
-              else parts.splice(parts.length - 2, 1, i++);
-              imageFilename = parts.join('.');
-            }
-            // add it to the list of images to download later
-            imageList[validatedSrc] = imageFilename;
-          }
-        }
-
-        // 如果启用了隐藏图片URL，返回true让turndown处理
-        if (options.hidePictureMdUrl) {
-          return true;
-        }
-      }
-      return node.nodeName === 'IMG';
-    },
-    replacement: function (content, node, tdopts) {
-      // 如果启用了隐藏图片URL，返回空字符串
-      if (options.hidePictureMdUrl) {
-        return '';
-      }
-      var alt = node.alt || '';
-      var src = node.getAttribute('src') || '';
-      var title = node.title || '';
-      var titlePart = title ? ' "' + title + '"' : '';
-      return src ? '![' + alt + ']' + '(' + src + titlePart + ')' : '';
-    },
-  });
-
-  // add a rule for links
-  turndownService.addRule('links', {
-    filter: (node, tdopts) => {
-      // check that this is indeed a link
-      if (node.nodeName == 'A' && node.getAttribute('href')) {
-        // get the href
-        const href = node.getAttribute('href');
-        // set the new href
-        const validatedHref = validateUri(href, article.baseURI);
-        node.setAttribute('href', validatedHref);
-
-        // 检查是否包含图片
-        const img = node.querySelector('img');
-        if (img) {
-          // 总是处理图片下载，不受 hidePictureMdUrl 影响
-          const src = img.getAttribute('src');
-          if (options.downloadImages && src) {
-            const validatedSrc = validateUri(src, article.baseURI);
-            let imageFilename = getImageFilename(validatedSrc, options, false);
-            if (!imageList[validatedSrc] || imageList[validatedSrc] != imageFilename) {
-              let i = 1;
-              while (Object.values(imageList).includes(imageFilename)) {
-                const parts = imageFilename.split('.');
-                if (i == 1) parts.splice(parts.length - 1, 0, i++);
-                else parts.splice(parts.length - 2, 1, i++);
-                imageFilename = parts.join('.');
-              }
-              imageList[validatedSrc] = imageFilename;
-            }
-          }
-
-          // 如果启用了隐藏图片URL，返回true让turndown处理
-          if (options.hidePictureMdUrl) {
-            return true;
-          }
-        }
-
-        // if we are to strip links, the filter needs to pass
-        return options.linkStyle == 'stripLinks';
-      }
-      // we're not passing the filter, just do the normal thing.
-      return false;
-    },
-    replacement: (content, node, tdopts) => {
-      // 如果是包含图片的链接且启用了hidePictureMdUrl，返回空字符串
-      const hasImage = node.querySelector('img');
-      if (hasImage && options.hidePictureMdUrl) {
-        return '';
-      }
-      // 如果是包含图片的链接，直接返回图片的 Markdown
-      if (hasImage) {
-        const img = node.querySelector('img');
-        const alt = img.alt || '';
-        const href = node.getAttribute('href');
-        const title = img.title || '';
-        const titlePart = title ? ' "' + title + '"' : '';
-        return '![' + alt + '](' + href + titlePart + ')';
-      }
-      // 如果是普通链接且设置了stripLinks
-      if (options.linkStyle == 'stripLinks') {
-        return content;
-      }
-      // 默认返回带链接的内容
-      var href = node.getAttribute('href');
-      var title = node.title ? ' "' + node.title + '"' : '';
-      if (!content || content.trim() === '') {
-        content = href;
-      }
-      return '[' + content + '](' + href + title + ')';
-    },
-  });
-
-  // handle multiple lines math
-  turndownService.addRule('mathjax', {
-    filter(node, options) {
-      return article.math.hasOwnProperty(node.id);
-    },
-    replacement(content, node, options) {
-      const math = article.math[node.id];
-      let tex = math.tex.trim().replaceAll('\xa0', '');
-
-      if (math.inline) {
-        tex = tex.replaceAll('\n', ' ');
-        return `$${tex}$`;
-      } else return `$$\n${tex}\n$$`;
-    },
-  });
-
-  function repeat(character, count) {
-    return Array(count + 1).join(character);
-  }
-
-  function convertToFencedCodeBlock(node, options) {
-    node.innerHTML = node.innerHTML.replaceAll('<br-keep></br-keep>', '<br>');
-    const langMatch = node.id?.match(/code-lang-(.+)/);
-    const language = langMatch?.length > 0 ? langMatch[1] : '';
-
-    const code = node.innerText;
-
-    const fenceChar = options.fence.charAt(0);
-    let fenceSize = 3;
-    const fenceInCodeRegex = new RegExp('^' + fenceChar + '{3,}', 'gm');
-
-    let match;
-    while ((match = fenceInCodeRegex.exec(code))) {
-      if (match[0].length >= fenceSize) {
-        fenceSize = match[0].length + 1;
-      }
-    }
-
-    const fence = repeat(fenceChar, fenceSize);
-
-    return '\n\n' + fence + language + '\n' + code.replace(/\n$/, '') + '\n' + fence + '\n\n';
-  }
-
-  turndownService.addRule('fencedCodeBlock', {
-    filter: function (node, options) {
-      return options.codeBlockStyle === 'fenced' && node.nodeName === 'PRE' && node.firstChild && node.firstChild.nodeName === 'CODE';
-    },
-    replacement: function (content, node, options) {
-      return convertToFencedCodeBlock(node.firstChild, options);
-    },
-  });
-
-  // handle <pre> as code blocks
-  turndownService.addRule('pre', {
-    filter: (node, tdopts) => {
-      return node.nodeName == 'PRE' && (!node.firstChild || node.firstChild.nodeName != 'CODE') && !node.querySelector('img');
-    },
-    replacement: (content, node, tdopts) => {
-      return convertToFencedCodeBlock(node, tdopts);
-    },
-  });
-
-  let markdown = options.frontmatter + turndownService.turndown(content) + options.backmatter;
-  console.log('Final markdown:', markdown);
-
-  // strip out non-printing special characters which CodeMirror displays as a red dot
-  // see: https://codemirror.net/doc/manual.html#option_specialChars
-  markdown = markdown.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f\u00ad\u061c\u200b-\u200f\u2028\u2029\ufeff\ufff9-\ufffc]/g, '');
-
-  return { markdown: markdown, imageList: imageList };
-}
-
-function cleanAttribute(attribute) {
-  return attribute ? attribute.replace(/(\n+\s*)+/g, '\n') : '';
-}
-
-function validateUri(href, baseURI) {
-  // check if the href is a valid url
+async function turndown(content, options, article) {
+  console.log('turndown:', content);
   try {
-    new URL(href);
-  } catch {
-    // if it's not a valid url, that likely means we have to prepend the base uri
-    const baseUri = new URL(baseURI);
+    const response = await chrome.runtime.sendMessage({
+      type: 'processMarkdown',
+      content: content,
+      options: options,
+      article: article,
+    });
 
-    // if the href starts with '/', we need to go from the origin
-    if (href.startsWith('/')) {
-      href = baseUri.origin + href;
-    }
-    // otherwise we need to go from the local folder
-    else {
-      href = baseUri.href + (baseUri.href.endsWith('/') ? '/' : '') + href;
-    }
+    const { markdown, imageList } = response.result;
+    console.log('处理后的markdown长度:', markdown.length);
+    return { markdown, imageList };
+  } catch (error) {
+    console.error('turndown error:', error);
+    throw error;
   }
-  return href;
-}
-
-function getImageFilename(src, options, prependFilePath = true) {
-  const slashPos = src.lastIndexOf('/');
-  const queryPos = src.indexOf('?');
-  let filename = src.substring(slashPos + 1, queryPos > 0 ? queryPos : src.length);
-
-  let imagePrefix = options.imagePrefix || '';
-
-  if (prependFilePath && options.title.includes('/')) {
-    imagePrefix = options.title.substring(0, options.title.lastIndexOf('/') + 1) + imagePrefix;
-  } else if (prependFilePath) {
-    imagePrefix = options.title + (imagePrefix.startsWith('/') ? '' : '/') + imagePrefix;
-  }
-
-  if (filename.includes(';base64,')) {
-    // this is a base64 encoded image, so what are we going to do for a filename here?
-    filename = 'image.' + filename.substring(0, filename.indexOf(';'));
-  }
-
-  let extension = filename.substring(filename.lastIndexOf('.'));
-  if (extension == filename) {
-    // there is no extension, so we need to figure one out
-    // for now, give it an 'idunno' extension and we'll process it later
-    filename = filename + '.idunno';
-  }
-
-  filename = generateValidFileName(filename, options.disallowedChars);
-
-  return imagePrefix + filename;
 }
 
 // function to replace placeholder strings with article info
@@ -371,36 +123,42 @@ async function convertArticleToMarkdown(article, downloadImages = null) {
   console.log('文章对象结构:', Object.keys(article)); // 调试用
   console.log('hidePictureMdUrl value in convertArticleToMarkdown:', options.hidePictureMdUrl);
 
-  if (!article?.content) {
-    console.error('无效的文章对象:', article);
-    throw new Error('文章内容未定义');
+  // 将处理逻辑转移到前端
+  try {
+    if (downloadImages != null) {
+      options.downloadImages = downloadImages;
+    }
+
+    // substitute front and backmatter templates if necessary
+    if (options.includeTemplate) {
+      options.frontmatter = textReplace(options.frontmatter, article) + '\n';
+      options.backmatter = '\n' + textReplace(options.backmatter, article);
+    } else {
+      options.frontmatter = options.backmatter = '';
+    }
+
+    options.imagePrefix = textReplace(options.imagePrefix, article, options.disallowedChars)
+      .split('/')
+      .map((s) => generateValidFileName(s, options.disallowedChars))
+      .join('/');
+
+    console.log('转换前内容长度:', article.content.length);
+    const result = await turndown(article.content, options, article);
+    console.log('转换后结果:', {
+      markdownType: typeof result.markdown,
+      imageCount: Object.keys(result.imageList).length,
+    });
+
+    if (options.downloadImages && options.downloadMode == 'downloadsApi') {
+      // pre-download the images
+      const processed = await preDownloadImages(result.imageList, result.markdown);
+      return processed;
+    }
+    return result;
+  } catch (error) {
+    console.error('Markdown处理失败:', error);
+    throw error;
   }
-
-  if (downloadImages != null) {
-    options.downloadImages = downloadImages;
-  }
-
-  // substitute front and backmatter templates if necessary
-  if (options.includeTemplate) {
-    options.frontmatter = textReplace(options.frontmatter, article) + '\n';
-    options.backmatter = '\n' + textReplace(options.backmatter, article);
-  } else {
-    options.frontmatter = options.backmatter = '';
-  }
-
-  options.imagePrefix = textReplace(options.imagePrefix, article, options.disallowedChars)
-    .split('/')
-    .map((s) => generateValidFileName(s, options.disallowedChars))
-    .join('/');
-
-  let result = turndown(article.content, options, article);
-  console.log('Markdown result:', result);
-
-  if (options.downloadImages && options.downloadMode == 'downloadsApi') {
-    // pre-download the images
-    result = await preDownloadImages(result.imageList, result.markdown);
-  }
-  return result;
 }
 
 // function to turn the title into a valid file name
@@ -577,6 +335,11 @@ async function notify(message) {
       return;
     }
 
+    // if (message.type === 'processMarkdownResult') {
+    //   // 处理前端返回的结果
+    //   return message.result;
+    // }
+
     if (message.type === 'clip') {
       // 使用消息中传递的tabId而不是重新查询
       const tabId = message.tabId;
@@ -611,11 +374,7 @@ async function notify(message) {
       return { success: true };
     }
   } catch (error) {
-    console.error('(notify)消息处理失败，完整错误信息:', {
-      message: message,
-      error: error.stack,
-    });
-    console.error('(notify)处理消息时发生错误:', error);
+    console.error('(notify)消息处理失败:', error);
     if (chrome.runtime?.id) {
       chrome.runtime.sendMessage({
         type: 'displayError',
@@ -937,7 +696,7 @@ async function copyMarkdownFromContext(info, tab) {
       const options = await getOptions();
       options.frontmatter = options.backmatter = '';
       const article = await getArticleFromContent(tab.id, false);
-      const { markdown } = turndown(`<a href="${info.linkUrl}">${info.linkText || info.selectionText}</a>`, { ...options, downloadImages: false }, article);
+      const { markdown } = await turndown(`<a href="${info.linkUrl}">${info.linkText || info.selectionText}</a>`, { ...options, downloadImages: false }, article);
       await chrome.scripting.executeScript({
         target: { tabId: tab.id },
         func: (content) => copyToClipboard(content),
@@ -1058,6 +817,4 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({ type: 'pong' });
     return true;
   }
-
-  // 其他消息处理保持不变...
 });
