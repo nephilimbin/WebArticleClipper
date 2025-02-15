@@ -729,3 +729,21 @@ function getImageFilename(src, options, prependFilePath = true) {
 
   return imagePrefix + filename;
 }
+
+function injectMathJaxScript() {
+  const script = document.createElement('script');
+  script.src = chrome.runtime.getURL('content_scripts/mathjax-inject.js');
+  script.onload = function () {
+    this.remove();
+  };
+
+  (document.head || document.documentElement).appendChild(script);
+}
+
+// 保持原有事件监听逻辑
+if (document.readyState === 'complete') {
+  console.log('document.readyState === complete');
+  injectMathJaxScript();
+} else {
+  window.addEventListener('load', injectMathJaxScript);
+}
