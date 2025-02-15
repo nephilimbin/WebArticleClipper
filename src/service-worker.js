@@ -27,7 +27,6 @@ createMenus();
 
 // function to convert the article content to markdown using Turndown
 async function turndown(content, options, article) {
-  console.log('turndown:', content);
   try {
     const response = await chrome.runtime.sendMessage({
       type: 'processMarkdown',

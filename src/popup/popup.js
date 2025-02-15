@@ -337,6 +337,7 @@ const connectionManager = {
   },
 };
 
+// 弹出页面加载
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('container').style.display = 'flex';
   document.getElementById('spinner').style.display = 'none';
@@ -452,12 +453,10 @@ async function downloadSelection(e) {
 }
 
 function notify(message) {
-  if (message.type === 'processMarkdownResult') {
-    const { markdown, imageList } = message.result;
-
-    cm.setValue(markdown);
+  if (message.type === 'display.md') {
+    cm.setValue(message.markdown);
     document.getElementById('title').value = message.article.title;
-    imageList = imageList;
+    imageList = message.imageList;
     mdClipsFolder = message.mdClipsFolder;
 
     document.getElementById('container').style.display = 'flex';
@@ -479,6 +478,7 @@ function showError(err) {
   }, 3000);
 }
 
+// 处理markdown
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === 'processMarkdown') {
     (async () => {
@@ -500,8 +500,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
+// 创建turndown服务
 TurndownService.prototype.defaultEscape = TurndownService.prototype.escape;
 
+// 执行markdown处理
 function turndownProcessing(content, options, article) {
   console.log('Options in turndown:', options);
   console.log('hidePictureMdUrl value in turndown:', options.hidePictureMdUrl);
