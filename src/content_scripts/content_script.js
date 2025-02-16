@@ -147,11 +147,23 @@ function downloadMarkdown(filename, text) {
   link.click();
 }
 
+// 在内容脚本中添加图片下载处理
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === 'downloadImage') {
+    downloadImage(message.filename, message.src)
+      .then((success) => sendResponse({ success }))
+      .catch((error) => sendResponse({ error }));
+    return true; // 保持消息通道开放
+  }
+});
+
+// 修改现有的 downloadImage 函数
 async function downloadImage(filename, url) {
   try {
     const blob = await ImageHandler.downloadImage(url, filename);
-    const blobUrl = URL.createObjectURL(blob);
 
+    // 在内容脚本中使用 URL.createObjectURL
+    const blobUrl = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = blobUrl;
     link.download = filename;
@@ -159,61 +171,10 @@ async function downloadImage(filename, url) {
     link.click();
     document.body.removeChild(link);
 
-    // 清理 blob URL
     setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
-
     return true;
   } catch (error) {
     console.error('Error downloading image:', error);
     return false;
   }
 }
-
-// 修改点：将 MathJax 处理逻辑内联到 content_script
-// 原 page_context.js 的功能已整合到当前文件，符合 MV3 禁止远程代码执行的规范
-// function injectMathJaxScript() {
-//   const script = document.createElement('script');
-//   script.textContent = `
-//     function addLatexToMathJax3() {
-//       // 完全恢复旧版 page_context.js 的原始逻辑
-//       if (typeof window.MathJax === 'undefined') {
-//         console.debug('MathJax not found on page');
-//         return;
-//       }
-
-//       if (!window.MathJax?.startup?.document?.math) {
-//         console.debug('MathJax not initialized');
-//         return;
-//       }
-
-//       try {
-//         for (const math of window.MathJax.startup.document.math) {
-//           if (math.typesetRoot && math.math) {
-//             math.typesetRoot.setAttribute('markdownload-latex', math.math);
-//           }
-//         }
-//       } catch (error) {
-//         console.debug('Error processing MathJax:', error);
-//       }
-//     }
-
-//     // 恢复旧版事件绑定结构
-//     if (document.readyState === 'loading') {
-//       document.addEventListener('DOMContentLoaded', addLatexToMathJax3);
-//     } else {
-//       addLatexToMathJax3();
-//     }
-//   `;
-
-//   // 保持安全注入方式
-//   (document.head || document.documentElement).appendChild(script);
-//   script.remove();
-// }
-
-// // 保持原有事件监听逻辑
-// if (document.readyState === 'complete') {
-//   console.log('document.readyState === complete');
-//   injectMathJaxScript();
-// } else {
-//   window.addEventListener('load', injectMathJaxScript);
-// }

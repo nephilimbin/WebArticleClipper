@@ -225,45 +225,41 @@ async function preDownloadImages(imageList, markdown) {
 
 // function to actually download the markdown file
 async function downloadMarkdown(markdown, title, tabId, imageList = {}, mdClipsFolder = '') {
-  // get the options
+  // 获取选项
   const options = await getOptions();
 
-  // download via the downloads API
+  // 使用 chrome.downloads API 直接下载
   if (options.downloadMode == 'downloadsApi' && chrome.downloads) {
-    // create the object url with markdown data as a blob
-    const url = URL.createObjectURL(
-      new Blob([markdown], {
-        type: 'text/markdown;charset=utf-8',
-      })
-    );
-
     try {
       if (mdClipsFolder && !mdClipsFolder.endsWith('/')) mdClipsFolder += '/';
-      // start the download
-      const id = await chrome.downloads.download({
-        url: url,
-        filename: mdClipsFolder + title + '.md',
-        saveAs: options.saveAs,
-      });
 
-      // add a listener for the download completion
-      chrome.downloads.onChanged.addListener(downloadListener(id, url));
+      // 直接使用 Blob 数据
+      const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+      const reader = new FileReader();
 
-      // download images (if enabled)
+      reader.onloadend = function () {
+        const dataUrl = reader.result;
+        chrome.downloads.download({
+          url: dataUrl,
+          filename: mdClipsFolder + title + '.md',
+          saveAs: options.saveAs,
+          conflictAction: 'uniquify',
+        });
+      };
+
+      reader.readAsDataURL(blob);
+
+      // 图片下载逻辑保持不变
       if (options.downloadImages) {
-        // get the relative path of the markdown file (if any) for image path
         let destPath = mdClipsFolder + title.substring(0, title.lastIndexOf('/'));
         if (destPath && !destPath.endsWith('/')) destPath += '/';
         Object.entries(imageList).forEach(async ([src, filename]) => {
-          // start the download of the image
-          const imgId = await chrome.downloads.download({
-            url: src,
-            // set a destination path (relative to md file)
+          // 通过内容脚本处理图片下载
+          chrome.tabs.sendMessage(tabId, {
+            type: 'downloadImage',
+            src: src,
             filename: destPath ? destPath + filename : filename,
-            saveAs: false,
           });
-          // add a listener (so we can release the blob url)
-          chrome.downloads.onChanged.addListener(downloadListener(imgId, src));
         });
       }
     } catch (err) {
