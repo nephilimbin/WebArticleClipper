@@ -88,11 +88,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["/content_scripts/mathjax-inject.js", "/options/*", "/shared/*", "/browser-polyfill.min.js", "/popup/*", "/content_scripts/*"],
-      "matches": ["<all_urls>"]
-    },
-    {
-      "resources": ["/service_worker/turndown.js", "/service_worker/turndown-plugin-gfm.js"],
+      "resources": ["/options/*", "/shared/*", "/browser-polyfill.min.js", "/popup/*", "/content_scripts/*", "/service_worker/*"],
       "matches": ["<all_urls>"]
     }
   ],
