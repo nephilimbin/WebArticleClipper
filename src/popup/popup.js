@@ -240,7 +240,7 @@ async function handleParseDOM(request, sender, sendResponse) {
         }
         article.math = math;
 
-        console.log('(content_script)发送解析结果');
+        console.log('(handleParseDOM)发送解析结果');
         sendResponse({ article });
       } catch (error) {
         console.error('解析过程中出错:', error);
@@ -269,7 +269,6 @@ async function clipSite(tabId) {
       },
     })
     .then((results) => {
-      console.log('clipSite开始执行');
       if (results?.[0]?.result) {
         console.log('(clipSite) DOM内容长度:', results[0].result.dom?.length);
         showOrHideClipOption(results[0].result.selection);
@@ -459,6 +458,10 @@ function notify(message) {
     imageList = message.imageList;
     mdClipsFolder = message.mdClipsFolder;
 
+    console.log('notify中Message:', message);
+    console.log('notify文章对象:', message.article);
+    console.log('notify图片列表:', imageList);
+
     document.getElementById('container').style.display = 'flex';
     document.getElementById('spinner').style.display = 'none';
     document.getElementById('download').focus();
@@ -479,12 +482,12 @@ function showError(err) {
 }
 
 // 处理markdown
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+function processMarkdown(request, sender, sendResponse) {
+  // chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === 'processMarkdown') {
     (async () => {
       try {
         const result = turndownProcessing(request.content, request.options, request.article);
-
         sendResponse({
           type: 'processMarkdownResult',
           result: result,
@@ -498,7 +501,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     })();
     return true;
   }
-});
+}
+chrome.runtime.onMessage.addListener(processMarkdown);
 
 // 创建turndown服务
 TurndownService.prototype.defaultEscape = TurndownService.prototype.escape;
@@ -616,6 +620,8 @@ function turndownProcessing(content, options, article) {
     },
   });
 
+  console.log('处理后的图片列表:', imageList);
+
   turndownService.addRule('mathjax', {
     filter(node, options) {
       return article.math.hasOwnProperty(node.id);
@@ -677,7 +683,6 @@ function turndownProcessing(content, options, article) {
   });
 
   let markdown = options.frontmatter + turndownService.turndown(content) + options.backmatter;
-  console.log('Final markdown:', markdown);
 
   markdown = markdown.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f\u00ad\u061c\u200b-\u200f\u2028\u2029\ufeff\ufff9-\ufffc]/g, '');
 

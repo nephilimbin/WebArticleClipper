@@ -119,8 +119,6 @@ async function convertArticleToMarkdown(article, downloadImages = null) {
     options = { ...defaultOptions };
   }
   console.log('Options in convertArticleToMarkdown:', options);
-  console.log('文章对象结构:', Object.keys(article)); // 调试用
-  console.log('hidePictureMdUrl value in convertArticleToMarkdown:', options.hidePictureMdUrl);
 
   // 将处理逻辑转移到前端
   try {
@@ -141,9 +139,9 @@ async function convertArticleToMarkdown(article, downloadImages = null) {
       .map((s) => generateValidFileName(s, options.disallowedChars))
       .join('/');
 
-    console.log('转换前内容长度:', article.content.length);
+    console.log('convertArticleToMarkdown转换前内容:', article);
     const result = await turndown(article.content, options, article);
-    console.log('转换后结果:', {
+    console.log('convertArticleToMarkdown转换后结果:', {
       markdownType: typeof result.markdown,
       imageCount: Object.keys(result.imageList).length,
     });
@@ -330,11 +328,6 @@ async function notify(message) {
       return;
     }
 
-    // if (message.type === 'processMarkdownResult') {
-    //   // 处理前端返回的结果
-    //   return message.result;
-    // }
-
     if (message.type === 'clip') {
       // 使用消息中传递的tabId而不是重新查询
       const tabId = message.tabId;
@@ -484,27 +477,20 @@ async function ensureScripts(tabId) {
 // get Readability article info from the dom passed in
 async function getArticleFromDom(domString, tabId) {
   try {
+    // 发送消息请求解析DOM
     const response = await chrome.runtime.sendMessage({
       type: 'parseDOM',
       domString: domString,
     });
 
-    console.log('(getArticleFromDom)已收到响应:', response);
-
     if (!response?.article?.content) {
       throw new Error('文章内容为空');
     }
-
+    // 获得文章对象
     const article = response.article;
-    console.debug('文章元数据:', {
-      title: article.title,
-      contentLength: article.content.length,
-      baseURI: article.baseURI,
-    });
 
     // 补充必要字段
     if (article) {
-      console.log('成功解析文章:', article.title);
       if (!article.math) article.math = {};
       if (!article.keywords) article.keywords = [];
     } else {
