@@ -16,7 +16,7 @@ export const defaultOptions = {
   title: '{pageTitle}',
   includeTemplate: false,
   saveAs: false,
-  downloadImages: false,
+  downloadImages: true,
   imagePrefix: '{pageTitle}/',
   mdClipsFolder: null,
   disallowedChars: '[]#^',

@@ -150,17 +150,45 @@ function downloadMarkdown(filename, text) {
 // 在内容脚本中添加图片下载处理
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'downloadImage') {
-    downloadImage(message.filename, message.src)
+    downloadImage(message.filename, message.src, message.isBase64)
       .then((success) => sendResponse({ success }))
       .catch((error) => sendResponse({ error }));
     return true; // 保持消息通道开放
   }
 });
 
-// 修改现有的 downloadImage 函数
-async function downloadImage(filename, url) {
+const activeDownloads = new Set();
+
+async function downloadImage(filename, url, isBase64 = false) {
+  const downloadKey = `${filename}|${url}`;
+  if (activeDownloads.has(downloadKey)) return false;
+  activeDownloads.add(downloadKey);
+
   try {
-    const blob = await ImageHandler.downloadImage(url, filename);
+    // 创建目录结构
+    const pathParts = filename.split('/');
+    if (pathParts.length > 1) {
+      await chrome.runtime.sendMessage({
+        type: 'createDirectory',
+        path: pathParts.slice(0, -1).join('/'),
+      });
+    }
+
+    let blob;
+    if (isBase64) {
+      // 直接处理base64数据
+      const byteString = atob(url.split(',')[1]);
+      const mimeType = url.match(/:(.*?);/)[1];
+      const ab = new ArrayBuffer(byteString.length);
+      const ia = new Uint8Array(ab);
+      for (let i = 0; i < byteString.length; i++) {
+        ia[i] = byteString.charCodeAt(i);
+      }
+      blob = new Blob([ab], { type: mimeType });
+    } else {
+      // 原始URL下载
+      blob = await ImageHandler.parseImage(url, filename);
+    }
 
     // 在内容脚本中使用 URL.createObjectURL
     const blobUrl = URL.createObjectURL(blob);
@@ -176,5 +204,7 @@ async function downloadImage(filename, url) {
   } catch (error) {
     console.error('Error downloading image:', error);
     return false;
+  } finally {
+    activeDownloads.delete(downloadKey);
   }
 }

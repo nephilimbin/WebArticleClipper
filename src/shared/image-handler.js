@@ -17,18 +17,18 @@ export default class ImageHandler {
    * @param {string} filename 文件名
    * @returns {Promise<Blob>}
    */
-  static async downloadImage(url, filename) {
+  static async parseImage(url, filename) {
     try {
-      console.log('Downloading image:', url, 'as', filename);
-
       const response = await fetch(url, {
         method: 'GET',
         headers: {
           Accept: Object.keys(SAFE_MIME_TYPES).join(', '),
-          'Content-Security-Policy': "default-src 'self'",
+          'Sec-Fetch-Dest': 'image',
           'X-Content-Type-Options': 'nosniff',
         },
         credentials: 'omit',
+        referrerPolicy: 'no-referrer',
+        mode: 'cors',
       });
 
       if (!response.ok) {
@@ -60,7 +60,7 @@ export default class ImageHandler {
    * @param {Object} imageList 图片列表 {url: filename}
    * @returns {Promise<Object>} 下载结果
    */
-  static async downloadImages(imageList) {
+  static async parseImages(imageList) {
     // 添加Service Worker就绪检查
     if (!navigator.serviceWorker?.controller) {
       throw new Error('Service Worker not ready. Please try again.');

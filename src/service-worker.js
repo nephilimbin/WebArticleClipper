@@ -34,9 +34,13 @@ async function turndown(content, options, article) {
       options: options,
       article: article,
     });
+    // 打印错误
+    if (response.type === 'error') {
+      console.error('turndown error:', response.error);
+      throw new Error(response.error);
+    }
 
     const { markdown, imageList } = response.result;
-    console.log('处理后的markdown长度:', markdown.length);
     return { markdown, imageList };
   } catch (error) {
     console.error('turndown error:', error);
@@ -147,7 +151,8 @@ async function convertArticleToMarkdown(article, downloadImages = null) {
     });
 
     if (options.downloadImages && options.downloadMode == 'downloadsApi') {
-      // pre-download the images
+      // 在Service Worker中强制使用base64格式
+      options.imageStyle = 'base64';
       const processed = await preDownloadImages(result.imageList, result.markdown);
       return processed;
     }
@@ -190,48 +195,51 @@ function generateValidFileName(title, disallowedChars = null) {
 
 async function preDownloadImages(imageList, markdown) {
   const options = await getOptions();
-  let newImageList = {};
+  const uniqueImages = new Map(); // 使用Map替代Set以存储完整信息
+  const processedList = {}; // 添加缺失的变量声明
 
   await Promise.all(
-    Object.entries(imageList).map(
-      ([src, filename]) =>
-        new Promise(async (resolve, reject) => {
-          try {
-            const result = await ImageHandler.downloadImage(src, filename);
-            if (options.imageStyle == 'base64') {
-              const reader = new FileReader();
-              reader.onloadend = function () {
-                markdown = markdown.replaceAll(src, reader.result);
-                resolve();
-              };
-              reader.readAsDataURL(result);
-            } else {
-              const blobUrl = URL.createObjectURL(result);
-              newImageList[blobUrl] = filename;
-              resolve();
-            }
-          } catch (error) {
-            console.error('Failed to download image:', error);
-            reject(error);
-          }
-        })
-    )
+    Object.entries(imageList).map(([src, filename]) => {
+      // 使用URL和filename组合作为唯一标识
+      const key = `${src}|${filename}`;
+      if (uniqueImages.has(key)) return Promise.resolve();
+      uniqueImages.set(key, true);
+
+      return new Promise(async (resolve) => {
+        try {
+          const blob = await ImageHandler.parseImage(src, filename);
+          const reader = new FileReader();
+          reader.onloadend = function () {
+            // 不再替换Markdown中的链接
+            processedList[src] = {
+              filename: filename,
+              base64: reader.result,
+              original: src,
+            };
+            resolve();
+          };
+          reader.readAsDataURL(blob);
+        } catch (error) {
+          console.error(`图片下载失败: ${src}`, error);
+          processedList[src] = { filename: filename, original: src };
+          resolve();
+        }
+      });
+    })
   );
 
-  return { imageList: newImageList, markdown: markdown };
+  return { imageList: processedList, markdown: markdown };
 }
 
 // function to actually download the markdown file
 async function downloadMarkdown(markdown, title, tabId, imageList = {}, mdClipsFolder = '') {
-  // 获取选项
   const options = await getOptions();
+  const validFolderName = generateValidFileName(title, options.disallowedChars);
+  const imageFolder = `${validFolderName}/`;
 
-  // 使用 chrome.downloads API 直接下载
   if (options.downloadMode == 'downloadsApi' && chrome.downloads) {
     try {
-      if (mdClipsFolder && !mdClipsFolder.endsWith('/')) mdClipsFolder += '/';
-
-      // 直接使用 Blob 数据
+      // 主文件下载路径
       const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
       const reader = new FileReader();
 
@@ -239,24 +247,22 @@ async function downloadMarkdown(markdown, title, tabId, imageList = {}, mdClipsF
         const dataUrl = reader.result;
         chrome.downloads.download({
           url: dataUrl,
-          filename: mdClipsFolder + title + '.md',
+          filename: `${mdClipsFolder}${validFolderName}.md`,
           saveAs: options.saveAs,
           conflictAction: 'uniquify',
         });
       };
-
       reader.readAsDataURL(blob);
 
-      // 图片下载逻辑保持不变
+      // 仅在开启下载图片时处理图片
       if (options.downloadImages) {
-        let destPath = mdClipsFolder + title.substring(0, title.lastIndexOf('/'));
-        if (destPath && !destPath.endsWith('/')) destPath += '/';
-        Object.entries(imageList).forEach(async ([src, filename]) => {
-          // 通过内容脚本处理图片下载
+        Object.entries(imageList).forEach(([src, info]) => {
+          const filename = `${imageFolder}${info.filename}`;
           chrome.tabs.sendMessage(tabId, {
             type: 'downloadImage',
-            src: src,
-            filename: destPath ? destPath + filename : filename,
+            src: info.base64 || src,
+            filename: filename,
+            isBase64: !!info.base64,
           });
         });
       }
@@ -494,7 +500,7 @@ async function getArticleFromDom(domString, tabId) {
       if (!article.math) article.math = {};
       if (!article.keywords) article.keywords = [];
     } else {
-      console.warn('收到空文章对象');
+      console.warn('DOM解析失败，收到空文章对象');
     }
     return article;
   } catch (error) {
@@ -792,10 +798,29 @@ chrome.runtime.onInstalled.addListener(async () => {
 });
 
 // 增强消息处理
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   // 添加ping/pong机制
   if (message.type === 'ping') {
     sendResponse({ type: 'pong' });
+    return true;
+  }
+
+  if (message.type === 'createDirectory') {
+    try {
+      // 使用File System Access API创建目录
+      const handle = await window.showDirectoryPicker();
+      await handle.requestPermission({ mode: 'readwrite' });
+
+      let currentHandle = handle;
+      for (const part of message.path.split('/')) {
+        currentHandle = await currentHandle.getDirectoryHandle(part, { create: true });
+      }
+
+      sendResponse({ success: true });
+    } catch (error) {
+      console.error('目录创建失败:', error);
+      sendResponse({ success: false, error: error.message });
+    }
     return true;
   }
 });

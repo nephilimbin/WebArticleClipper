@@ -458,10 +458,6 @@ function notify(message) {
     imageList = message.imageList;
     mdClipsFolder = message.mdClipsFolder;
 
-    console.log('notify中Message:', message);
-    console.log('notify文章对象:', message.article);
-    console.log('notify图片列表:', imageList);
-
     document.getElementById('container').style.display = 'flex';
     document.getElementById('spinner').style.display = 'none';
     document.getElementById('download').focus();
@@ -509,9 +505,6 @@ TurndownService.prototype.defaultEscape = TurndownService.prototype.escape;
 
 // 执行markdown处理
 function turndownProcessing(content, options, article) {
-  console.log('Options in turndown:', options);
-  console.log('hidePictureMdUrl value in turndown:', options.hidePictureMdUrl);
-
   if (options.turndownEscape) TurndownService.prototype.escape = TurndownService.prototype.defaultEscape;
   else TurndownService.prototype.escape = (s) => s;
 
@@ -521,7 +514,7 @@ function turndownProcessing(content, options, article) {
 
   turndownService.keep(['iframe', 'sub', 'sup', 'u', 'ins', 'del', 'small', 'big']);
 
-  let imageList = {};
+  const imageList = {};
   turndownService.addRule('images', {
     filter: function (node, tdopts) {
       if (node.nodeName == 'IMG' && node.getAttribute('src')) {
@@ -542,7 +535,6 @@ function turndownProcessing(content, options, article) {
             imageList[validatedSrc] = imageFilename;
           }
         }
-
         if (options.hidePictureMdUrl) {
           return true;
         }
@@ -619,8 +611,6 @@ function turndownProcessing(content, options, article) {
       return '[' + content + '](' + href + title + ')';
     },
   });
-
-  console.log('处理后的图片列表:', imageList);
 
   turndownService.addRule('mathjax', {
     filter(node, options) {
@@ -715,10 +705,9 @@ function getImageFilename(src, options, prependFilePath = true) {
 
   let imagePrefix = options.imagePrefix || '';
 
-  if (prependFilePath && options.title.includes('/')) {
-    imagePrefix = options.title.substring(0, options.title.lastIndexOf('/') + 1) + imagePrefix;
-  } else if (prependFilePath) {
-    imagePrefix = options.title + (imagePrefix.startsWith('/') ? '' : '/') + imagePrefix;
+  if (prependFilePath) {
+    const validFolderName = generateValidFileName(options.title, options.disallowedChars);
+    imagePrefix = `${validFolderName}/`;
   }
 
   if (filename.includes(';base64,')) {
@@ -751,4 +740,33 @@ if (document.readyState === 'complete') {
   injectMathJaxScript();
 } else {
   window.addEventListener('load', injectMathJaxScript);
+}
+
+function generateValidFileName(title, disallowedChars = null) {
+  // 添加参数校验
+  if (typeof title !== 'string') {
+    console.warn('Invalid title type:', typeof title);
+    title = String(title);
+  }
+  if (!title) return title;
+  else title = title + '';
+  // remove < > : " / \ | ? *
+  var illegalRe = /[\/\?<>\\:\*\|":]/g;
+  // and non-breaking spaces (thanks @Licat)
+  var name = title
+    .replace(illegalRe, '')
+    .replace(new RegExp('\u00A0', 'g'), ' ')
+    // collapse extra whitespace
+    .replace(new RegExp(/\s+/, 'g'), ' ')
+    // remove leading/trailing whitespace that can cause issues when using {pageTitle} in a download path
+    .trim();
+
+  if (disallowedChars) {
+    for (let c of disallowedChars) {
+      if (`[\\^$.|?*+()`.includes(c)) c = `\\${c}`;
+      name = name.replace(new RegExp(c, 'g'), '');
+    }
+  }
+
+  return name;
 }
