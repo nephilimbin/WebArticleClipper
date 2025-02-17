@@ -231,75 +231,101 @@ async function preDownloadImages(imageList, markdown) {
   return { imageList: processedList, markdown: markdown };
 }
 
-// function to actually download the markdown file
+let isProcessing = false;
+
 async function downloadMarkdown(markdown, title, tabId, imageList = {}, mdClipsFolder = '') {
-  const options = await getOptions();
-  const validFolderName = generateValidFileName(title, options.disallowedChars);
-  const imageFolder = `${validFolderName}/`;
-
-  if (options.downloadMode == 'downloadsApi' && chrome.downloads) {
-    try {
-      // 主文件下载路径
-      const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
-      const reader = new FileReader();
-
-      reader.onloadend = function () {
-        const dataUrl = reader.result;
-        chrome.downloads.download({
-          url: dataUrl,
-          filename: `${mdClipsFolder}${validFolderName}.md`,
-          saveAs: options.saveAs,
-          conflictAction: 'uniquify',
-        });
-      };
-      reader.readAsDataURL(blob);
-
-      // 仅在开启下载图片时处理图片
-      if (options.downloadImages) {
-        Object.entries(imageList).forEach(([src, info]) => {
-          const filename = `${imageFolder}${info.filename}`;
-          chrome.tabs.sendMessage(tabId, {
-            type: 'downloadImage',
-            src: info.base64 || src,
-            filename: filename,
-            isBase64: !!info.base64,
-          });
-        });
-      }
-    } catch (err) {
-      console.error('Download failed', err);
-    }
+  if (isProcessing) {
+    console.warn('已有下载正在进行中');
+    return;
   }
-  // // download via obsidian://new uri
-  // else if (options.downloadMode == 'obsidianUri') {
-  //   try {
-  //     await ensureScripts(tabId);
-  //     let uri = 'obsidian://new?';
-  //     uri += `${options.obsidianPathType}=${encodeURIComponent(title)}`;
-  //     if (options.obsidianVault) uri += `&vault=${encodeURIComponent(options.obsidianVault)}`;
-  //     uri += `&content=${encodeURIComponent(markdown)}`;
-  //     let code = `window.location='${uri}'`;
-  //     await chrome.tabs.executeScript(tabId, {code: code});
-  //   }
-  //   catch (error) {
-  //     // This could happen if the extension is not allowed to run code in
-  //     // the page, for example if the tab is a privileged page.
-  //     console.error("Failed to execute script: " + error);
-  //   };
 
-  // }
-  // download via content link
-  else {
-    try {
-      await ensureScripts(tabId);
-      const filename = mdClipsFolder + generateValidFileName(title, options.disallowedChars) + '.md';
-      const code = `downloadMarkdown("${filename}","${base64EncodeUnicode(markdown)}");`;
-      await chrome.tabs.executeScript(tabId, { code: code });
-    } catch (error) {
-      // This could happen if the extension is not allowed to run code in
-      // the page, for example if the tab is a privileged page.
-      console.error('Failed to execute script: ' + error);
+  try {
+    isProcessing = true;
+    const options = await getOptions();
+    const validFolderName = generateValidFileName(title, options.disallowedChars);
+    const imageFolder = `${validFolderName}/`;
+    const batchId = Date.now(); // 使用时间戳作为批次ID
+
+    if (options.downloadMode == 'downloadsApi' && chrome.downloads) {
+      try {
+        // 主文件下载路径
+        const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+        const reader = new FileReader();
+
+        reader.onloadend = function () {
+          const dataUrl = reader.result;
+          chrome.downloads.download({
+            url: dataUrl,
+            filename: `${mdClipsFolder}${validFolderName}.md`,
+            saveAs: options.saveAs,
+            conflictAction: 'uniquify',
+          });
+        };
+        reader.readAsDataURL(blob);
+
+        // 仅在开启下载图片时处理图片
+        console.log('imageList', imageList);
+        if (options.downloadImages) {
+          Object.entries(imageList).forEach(([src, info]) => {
+            const filename = `${imageFolder}${info.filename}`;
+            chrome.tabs.sendMessage(
+              tabId,
+              {
+                type: 'downloadImage',
+                batchId: batchId, // 添加批次标识
+                src: info.base64 || src,
+                filename: filename,
+                isBase64: !!info.base64,
+              },
+              (response) => {
+                if (chrome.runtime.lastError) {
+                  console.error('下载请求失败:', {
+                    filename,
+                    error: chrome.runtime.lastError.message,
+                    batchId,
+                  });
+                }
+              }
+            );
+          });
+        }
+      } catch (err) {
+        console.error('Download failed', err);
+      }
     }
+    // // download via obsidian://new uri
+    // else if (options.downloadMode == 'obsidianUri') {
+    //   try {
+    //     await ensureScripts(tabId);
+    //     let uri = 'obsidian://new?';
+    //     uri += `${options.obsidianPathType}=${encodeURIComponent(title)}`;
+    //     if (options.obsidianVault) uri += `&vault=${encodeURIComponent(options.obsidianVault)}`;
+    //     uri += `&content=${encodeURIComponent(markdown)}`;
+    //     let code = `window.location='${uri}'`;
+    //     await chrome.tabs.executeScript(tabId, {code: code});
+    //   }
+    //   catch (error) {
+    //     // This could happen if the extension is not allowed to run code in
+    //     // the page, for example if the tab is a privileged page.
+    //     console.error("Failed to execute script: " + error);
+    //   };
+
+    // }
+    // download via content link
+    else {
+      try {
+        await ensureScripts(tabId);
+        const filename = mdClipsFolder + generateValidFileName(title, options.disallowedChars) + '.md';
+        const code = `downloadMarkdown("${filename}","${base64EncodeUnicode(markdown)}");`;
+        await chrome.tabs.executeScript(tabId, { code: code });
+      } catch (error) {
+        // This could happen if the extension is not allowed to run code in
+        // the page, for example if the tab is a privileged page.
+        console.error('Failed to execute script: ' + error);
+      }
+    }
+  } finally {
+    isProcessing = false;
   }
 }
 
@@ -802,25 +828,6 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   // 添加ping/pong机制
   if (message.type === 'ping') {
     sendResponse({ type: 'pong' });
-    return true;
-  }
-
-  if (message.type === 'createDirectory') {
-    try {
-      // 使用File System Access API创建目录
-      const handle = await window.showDirectoryPicker();
-      await handle.requestPermission({ mode: 'readwrite' });
-
-      let currentHandle = handle;
-      for (const part of message.path.split('/')) {
-        currentHandle = await currentHandle.getDirectoryHandle(part, { create: true });
-      }
-
-      sendResponse({ success: true });
-    } catch (error) {
-      console.error('目录创建失败:', error);
-      sendResponse({ success: false, error: error.message });
-    }
     return true;
   }
 });

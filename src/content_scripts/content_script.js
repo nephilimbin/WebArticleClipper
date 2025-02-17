@@ -1,3 +1,35 @@
+// 在文件顶部添加初始化代码
+if (!window._markdownload) {
+  window._markdownload = {
+    initialized: false,
+    downloadQueue: new Set(),
+  };
+}
+
+// 只初始化一次消息监听
+if (!window._markdownload.initialized) {
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.type === 'downloadImage') {
+      // 添加请求ID校验
+      const requestId = `${message.filename}|${message.src.substring(0, 100)}`;
+      if (window._markdownload.downloadQueue.has(requestId)) {
+        console.warn('重复请求已忽略:', requestId);
+        return true;
+      }
+
+      window._markdownload.downloadQueue.add(requestId);
+      downloadImage(message.filename, message.src, message.isBase64)
+        .finally(() => {
+          window._markdownload.downloadQueue.delete(requestId);
+        })
+        .then((success) => sendResponse({ success }))
+        .catch((error) => sendResponse({ error }));
+      return true;
+    }
+  });
+  window._markdownload.initialized = true;
+}
+
 function notifyExtension() {
   // send a message that the content should be clipped
   chrome.runtime.sendMessage({ type: 'clip', dom: content });
@@ -147,32 +179,22 @@ function downloadMarkdown(filename, text) {
   link.click();
 }
 
-// 在内容脚本中添加图片下载处理
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'downloadImage') {
-    downloadImage(message.filename, message.src, message.isBase64)
-      .then((success) => sendResponse({ success }))
-      .catch((error) => sendResponse({ error }));
-    return true; // 保持消息通道开放
-  }
-});
-
-const activeDownloads = new Set();
+// const activeDownloads = new Set();
 
 async function downloadImage(filename, url, isBase64 = false) {
-  const downloadKey = `${filename}|${url}`;
-  if (activeDownloads.has(downloadKey)) return false;
-  activeDownloads.add(downloadKey);
-
   try {
+    console.groupCollapsed(`[下载开始] ${filename}`);
+    console.log('来源URL:', url.substring(0, 100));
+    console.trace('调用堆栈');
+
     // 创建目录结构
-    const pathParts = filename.split('/');
-    if (pathParts.length > 1) {
-      await chrome.runtime.sendMessage({
-        type: 'createDirectory',
-        path: pathParts.slice(0, -1).join('/'),
-      });
-    }
+    // const pathParts = filename.split('/');
+    // if (pathParts.length > 1) {
+    //   await chrome.runtime.sendMessage({
+    //     type: 'createDirectory',
+    //     path: pathParts.slice(0, -1).join('/'),
+    //   });
+    // }
 
     let blob;
     if (isBase64) {
@@ -200,11 +222,11 @@ async function downloadImage(filename, url, isBase64 = false) {
     document.body.removeChild(link);
 
     setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+
+    console.groupEnd();
     return true;
   } catch (error) {
-    console.error('Error downloading image:', error);
-    return false;
-  } finally {
-    activeDownloads.delete(downloadKey);
+    console.error('下载失败:', { filename, error });
+    throw error;
   }
 }

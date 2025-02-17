@@ -82,7 +82,7 @@
       "matches": ["*://*/*"],
       "js": ["content_scripts/content_script.js"],
       "run_at": "document_end",
-      "all_frames": true,
+      "all_frames": false,
       "match_about_blank": true
     }
   ],
