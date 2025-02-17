@@ -67,6 +67,11 @@ const toggleIncludeTemplate = (options) => {
   chrome.storage.sync
     .set(options)
     .then(() => {
+      chrome.tabs.query({ active: true, currentWindow: true }).then((tabs) => {
+        if (tabs[0]?.id) {
+          clipSite(tabs[0].id);
+        }
+      });
       chrome.contextMenus.update('toggle-includeTemplate', {
         checked: options.includeTemplate,
       });
@@ -75,7 +80,6 @@ const toggleIncludeTemplate = (options) => {
           checked: options.includeTemplate,
         });
       } catch {}
-      return clipSite();
     })
     .catch((error) => {
       console.error(error);
@@ -106,7 +110,13 @@ function toggleHidePictureMdUrl(options) {
   options.hidePictureMdUrl = !options.hidePictureMdUrl;
   chrome.storage.sync
     .set(options)
-    .then(() => clipSite())
+    .then(() => {
+      chrome.tabs.query({ active: true, currentWindow: true }).then((tabs) => {
+        if (tabs[0]?.id) {
+          clipSite(tabs[0].id);
+        }
+      });
+    })
     .catch((error) => {
       console.error(error);
     });
@@ -272,31 +282,17 @@ async function clipSite(tabId) {
       if (results?.[0]?.result) {
         console.log('(clipSite) DOM内容长度:', results[0].result.dom?.length);
         showOrHideClipOption(results[0].result.selection);
-        let message = {
-          type: 'clip',
-          dom: results[0].result.dom,
-          selection: results[0].result.selection,
-          tabId: tabId,
-        };
-        return chrome.storage.sync
-          .get(defaultOptions)
-          .then((options) => {
-            console.log('从存储获取的选项:', options);
-            options = { ...defaultOptions, ...options };
-            console.log('合并后选项:', options);
-            return chrome.runtime.sendMessage({
-              ...message,
-              ...options,
-            });
-          })
-          .catch((err) => {
-            console.error('获取选项失败:', err);
-            showError(err);
-            return chrome.runtime.sendMessage({
-              ...message,
-              ...defaultOptions,
-            });
+        chrome.storage.sync.get(defaultOptions).then((options) => {
+          options = { ...defaultOptions, ...options };
+          console.log('合并后选项:', options);
+          chrome.runtime.sendMessage({
+            type: 'clip',
+            dom: results[0].result.dom,
+            selection: results[0].result.selection,
+            tabId: tabId,
+            ...options,
           });
+        });
       } else {
         console.warn('(clipSite) 未获取到有效结果，可能原因:', results?.[0]?.error);
       }
