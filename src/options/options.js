@@ -45,19 +45,27 @@ const save = async () => {
   const spinner = document.getElementById('spinner');
   spinner.style.display = 'block';
   try {
-    await chrome.storage.sync.set(options);
+    // 过滤空键值
+    const cleanOptions = Object.keys(options).reduce((acc, key) => {
+      if (key) acc[key] = options[key];
+      return acc;
+    }, {});
 
-    // 添加菜单重建逻辑
-    const { createMenus } = await import('/shared/context-menus.js');
-    await createMenus(options);
+    await chrome.storage.sync.set(cleanOptions);
+
+    // 新增：通知其他部分配置更新
+    chrome.runtime.sendMessage({
+      type: 'optionsUpdated',
+      fullOptions: cleanOptions,
+    });
 
     console.log('配置保存成功，菜单已更新');
+    document.getElementById('status').textContent = '配置保存成功';
+    document.getElementById('status').classList.remove('error');
   } catch (err) {
     console.error('保存失败:', err);
-    document.querySelectorAll('.status').forEach((statusEl) => {
-      statusEl.textContent = err;
-      statusEl.classList.add('error');
-    });
+    document.getElementById('status').textContent = `保存失败: ${err.message}`;
+    document.getElementById('status').classList.add('error');
   } finally {
     spinner.style.display = 'none';
   }
@@ -70,53 +78,26 @@ function hideStatus() {
 const setCurrentChoice = (result) => {
   options = result;
 
-  // if browser doesn't support the download api (i.e. Safari)
-  // we have to use contentLink download mode
-  if (!chrome.downloads) {
-    options.downloadMode = 'contentLink';
-    document.querySelectorAll("[name='downloadMode']").forEach((el) => (el.disabled = true));
-    document.querySelector('#downloadMode p').innerText = 'The Downloas API is unavailable in this browser.';
-  }
+  // 先重置所有元素的显示状态
+  document.querySelectorAll('[data-show-if]').forEach((el) => {
+    el.style.display = 'block';
+  });
 
-  const downloadImages = options.downloadImages && options.downloadMode == 'downloadsApi';
+  // 再执行正常更新
+  document.querySelectorAll('[name]').forEach((element) => {
+    const name = element.name;
+    if (name in options) {
+      if (element.type === 'checkbox') {
+        element.checked = options[name];
+      } else if (element.type === 'radio') {
+        element.checked = element.value === options[name];
+      } else {
+        element.value = options[name];
+      }
+    }
+  });
 
-  if (!downloadImages && (options.imageStyle == 'markdown' || options.imageStyle.startsWith('obsidian'))) {
-    options.imageStyle = 'originalSource';
-  }
-
-  document.querySelector("[name='frontmatter']").value = options.frontmatter;
-  textareaInput.bind(document.querySelector("[name='frontmatter']"))();
-  document.querySelector("[name='backmatter']").value = options.backmatter;
-  textareaInput.bind(document.querySelector("[name='backmatter']"))();
-  document.querySelector("[name='title']").value = options.title;
-  document.querySelector("[name='disallowedChars']").value = options.disallowedChars;
-  document.querySelector("[name='includeTemplate']").checked = options.includeTemplate;
-  document.querySelector("[name='saveAs']").checked = options.saveAs;
-  document.querySelector("[name='downloadImages']").checked = options.downloadImages;
-  document.querySelector("[name='imagePrefix']").value = options.imagePrefix;
-  document.querySelector("[name='mdClipsFolder']").value = result.mdClipsFolder;
-  document.querySelector("[name='turndownEscape']").checked = options.turndownEscape;
-  document.querySelector("[name='contextMenus']").checked = options.contextMenus;
-  document.querySelector("[name='obsidianIntegration']").checked = options.obsidianIntegration;
-  document.querySelector("[name='obsidianVault']").value = options.obsidianVault;
-  document.querySelector("[name='obsidianFolder']").value = options.obsidianFolder;
-  document.querySelector("[name='hidePictureMdUrl']").checked = options.hidePictureMdUrl;
-
-  setCheckedValue(document.querySelectorAll("[name='headingStyle']"), options.headingStyle);
-  setCheckedValue(document.querySelectorAll("[name='hr']"), options.hr);
-  setCheckedValue(document.querySelectorAll("[name='bulletListMarker']"), options.bulletListMarker);
-  setCheckedValue(document.querySelectorAll("[name='codeBlockStyle']"), options.codeBlockStyle);
-  setCheckedValue(document.querySelectorAll("[name='fence']"), options.fence);
-  setCheckedValue(document.querySelectorAll("[name='emDelimiter']"), options.emDelimiter);
-  setCheckedValue(document.querySelectorAll("[name='strongDelimiter']"), options.strongDelimiter);
-  setCheckedValue(document.querySelectorAll("[name='linkStyle']"), options.linkStyle);
-  setCheckedValue(document.querySelectorAll("[name='linkReferenceStyle']"), options.linkReferenceStyle);
-  setCheckedValue(document.querySelectorAll("[name='imageStyle']"), options.imageStyle);
-  setCheckedValue(document.querySelectorAll("[name='imageRefStyle']"), options.imageRefStyle);
-  setCheckedValue(document.querySelectorAll("[name='downloadMode']"), options.downloadMode);
-  // setCheckedValue(document.querySelectorAll("[name='obsidianPathType']"), options.obsidianPathType);
-
-  refereshElements();
+  refereshElements(); // 最后应用条件显示
 };
 
 const restoreOptions = async () => {
@@ -150,6 +131,61 @@ const show = (el, show) => {
 };
 
 const refereshElements = () => {
+  // 更新可见性
+  document.querySelectorAll('[data-show-if]').forEach((element) => {
+    const condition = element.dataset.showIf;
+    let shouldShow = true; // 默认显示所有元素
+
+    switch (condition) {
+      case 'downloadsApi':
+        shouldShow = options.downloadMode === 'downloadsApi';
+        break;
+      case 'referenced':
+        shouldShow = options.linkStyle === 'referenced';
+        break;
+      case 'fenced':
+        shouldShow = options.codeBlockStyle === 'fenced';
+        break;
+      case 'imageMarkdown':
+        shouldShow = options.imageStyle === 'markdown';
+        break;
+      case 'obsidianIntegration':
+        shouldShow = options.obsidianIntegration;
+        break;
+      // 添加其他必要条件
+      default:
+        shouldShow = true; // 添加默认显示
+    }
+
+    element.style.display = shouldShow ? 'block' : 'none';
+  });
+
+  // 更新禁用状态
+  document.querySelectorAll('[data-disable-if]').forEach((element) => {
+    const condition = element.dataset.disableIf;
+    let shouldDisable = false;
+
+    switch (condition) {
+      case '!downloadImages':
+        shouldDisable = !options.downloadImages;
+        break;
+      case 'safariBrowser':
+        shouldDisable = !chrome.downloads;
+        break;
+      // 添加其他必要条件
+    }
+
+    element.disabled = shouldDisable;
+  });
+
+  // 强制更新所有复选框状态
+  document.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
+    const name = checkbox.name;
+    if (options.hasOwnProperty(name)) {
+      checkbox.checked = options[name];
+    }
+  });
+
   document
     .getElementById('downloadModeGroup')
     .querySelectorAll('.radio-container,.checkbox-container,.textbox-container')
@@ -176,27 +212,66 @@ const refereshElements = () => {
   document.getElementById('base64').disabled = !downloadImages;
   document.getElementById('obsidian').disabled = !downloadImages;
   document.getElementById('obsidian-nofolder').disabled = !downloadImages;
+
+  // 添加对hidePictureMdUrl相关元素的显示控制
+  const hidePictureEl = document.querySelector("[name='hidePictureMdUrl']");
+  if (hidePictureEl) {
+    hidePictureEl.checked = options.hidePictureMdUrl;
+  }
 };
 
 const inputChange = (e) => {
-  console.log('inputChange');
+  if (e?.target?.name === 'import-file') {
+    const file = e.target.files[0];
+    if (!file || file.type !== 'application/json') {
+      console.error('无效文件类型:', file?.type);
+      return;
+    }
 
-  if (e) {
-    let key = e.target.name;
-    let value = e.target.value;
-    if (key == 'import-file') {
-      fr = new FileReader();
-      fr.onload = (ev) => {
-        let lines = ev.target.result;
-        options = JSON.parse(lines);
+    const reader = new FileReader();
+    reader.onloadstart = () => console.log('开始读取文件...');
+    reader.onloadend = () => console.log('文件读取完成');
+
+    reader.onload = async (event) => {
+      try {
+        console.log('文件原始内容:', event.target.result.substring(0, 100)); // 打印前100字符
+        const importedOptions = JSON.parse(event.target.result);
+        console.log('解析后的导入配置:', importedOptions);
+
+        // 深度合并所有配置项
+        options = {
+          ...defaultOptions,
+          ...importedOptions,
+          mathRendering: {
+            ...defaultOptions.mathRendering,
+            ...(importedOptions.mathRendering || {}),
+          },
+          hidePictureMdUrl: importedOptions.hidePictureMdUrl ?? defaultOptions.hidePictureMdUrl,
+        };
+        console.log('合并后的完整配置:', options);
+
+        // 强制更新UI
         setCurrentChoice(options);
-        chrome.contextMenus.removeAll();
-        createMenus();
-        save();
         refereshElements();
-      };
-      fr.readAsText(e.target.files[0]);
-    } else {
+
+        // 立即保存
+        await save();
+
+        // 验证存储中的实际值
+        const stored = await chrome.storage.sync.get(null);
+        console.log('当前存储中的配置:', stored);
+      } catch (error) {
+        console.error('导入失败:', error);
+        document.getElementById('status').textContent = `导入失败: ${error.message}`;
+        document.getElementById('status').classList.add('error');
+      }
+    };
+
+    reader.readAsText(file);
+  } else {
+    if (e) {
+      let key = e.target.name;
+      let value = e.target.value;
       if (e.target.type == 'checkbox') value = e.target.checked;
       options[key] = value;
 

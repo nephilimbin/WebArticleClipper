@@ -5,6 +5,12 @@
     <meta charset="UTF-8">
     <title>MarkDownload Options</title>
     <link rel="stylesheet" type="text/css" href="/options/options.css" media="screen">
+    <style>
+        [data-show-if] {
+            display: block !important;
+            /* 强制默认显示 */
+        }
+    </style>
 </head>
 
 <body>
@@ -184,7 +190,7 @@
                 <label for="saveAs">Always show Save As dialog (regardless of browser setting)</label>
             </div>
 
-            <div class="checkbox-container" id="hidePictureMdUrl-container">
+            <div class="checkbox-container" data-show-if="downloadsApi" data-disable-if="!downloadImages">
                 <input name="hidePictureMdUrl" id="hidePictureMdUrl" type="checkbox" />
                 <label for="hidePictureMdUrl">Hide picture md url (hide image URLs in markdown output)</label>
             </div>
@@ -385,12 +391,12 @@ const helloWorld = () => {
 
     <hr>
 
-    <h2>Import / Export</h2>
+    <h2>Import / Export Options</h2>
 
     <div class="button-container">
         <button id="import" type="button">
             <label>Import from a previous backup</label>
-            <input type="file" hidden accept=".json">
+            <input type="file" id="import-file" name="import-file" hidden accept=".json">
         </button>
 
         <button id="export" type="button">

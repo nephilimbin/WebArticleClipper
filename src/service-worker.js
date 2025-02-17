@@ -316,12 +316,22 @@ async function downloadMarkdown(markdown, title, tabId, imageList = {}, mdClipsF
       try {
         await ensureScripts(tabId);
         const filename = mdClipsFolder + generateValidFileName(title, options.disallowedChars) + '.md';
-        const code = `downloadMarkdown("${filename}","${base64EncodeUnicode(markdown)}");`;
-        await chrome.tabs.executeScript(tabId, { code: code });
+        // 修改为新的scripting API调用方式
+        await chrome.scripting.executeScript({
+          target: { tabId: tabId },
+          func: (filename, markdownData) => {
+            // 在页面上下文中创建下载
+            const element = document.createElement('a');
+            element.href = `data:text/markdown;base64,${markdownData}`;
+            element.download = filename;
+            document.body.appendChild(element);
+            element.click();
+            document.body.removeChild(element);
+          },
+          args: [filename, base64EncodeUnicode(markdown)],
+        });
       } catch (error) {
-        // This could happen if the extension is not allowed to run code in
-        // the page, for example if the tab is a privileged page.
-        console.error('Failed to execute script: ' + error);
+        console.error('脚本执行失败:', error);
       }
     }
   } finally {
@@ -828,14 +838,8 @@ chrome.runtime.onInstalled.addListener(async () => {
 // 修改配置更新处理
 chrome.runtime.onMessage.addListener(async (message) => {
   if (message.type === 'optionsUpdated') {
-    console.log('收到配置更新，准备重建菜单');
-    try {
-      // 添加延迟确保操作顺序
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      const options = await chrome.storage.sync.get(defaultOptions);
-      await createMenus(options);
-    } catch (error) {
-      console.error('菜单更新失败:', error);
-    }
+    console.log('收到完整配置:', message.fullOptions);
+    // 使用传递的配置代替存储读取
+    await createMenus(message.fullOptions);
   }
 });
