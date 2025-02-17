@@ -179,23 +179,9 @@ function downloadMarkdown(filename, text) {
   link.click();
 }
 
-// const activeDownloads = new Set();
-
+// 下载图片
 async function downloadImage(filename, url, isBase64 = false) {
   try {
-    console.groupCollapsed(`[下载开始] ${filename}`);
-    console.log('来源URL:', url.substring(0, 100));
-    console.trace('调用堆栈');
-
-    // 创建目录结构
-    // const pathParts = filename.split('/');
-    // if (pathParts.length > 1) {
-    //   await chrome.runtime.sendMessage({
-    //     type: 'createDirectory',
-    //     path: pathParts.slice(0, -1).join('/'),
-    //   });
-    // }
-
     let blob;
     if (isBase64) {
       // 直接处理base64数据

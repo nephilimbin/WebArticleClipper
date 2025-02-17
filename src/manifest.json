@@ -88,7 +88,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["/options/*", "/shared/*", "/browser-polyfill.min.js", "/popup/*", "/content_scripts/*", "/service_worker/*"],
+      "resources": ["browser-polyfill.min.js", "content_scripts/mathjax-inject.js"],
       "matches": ["<all_urls>"]
     }
   ],

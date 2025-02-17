@@ -806,8 +806,10 @@ chrome.runtime.onConnect.addListener((port) => {
 });
 
 // 修改为使用统一连接管理器
-chrome.runtime.onStartup.addListener(() => {
+chrome.runtime.onStartup.addListener(async () => {
   console.log('扩展启动，初始化连接...');
+  const options = await chrome.storage.sync.get(defaultOptions);
+  await createMenus(options);
   connectionManager.connect();
 });
 
@@ -823,11 +825,17 @@ chrome.runtime.onInstalled.addListener(async () => {
   }
 });
 
-// 增强消息处理
-chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
-  // 添加ping/pong机制
-  if (message.type === 'ping') {
-    sendResponse({ type: 'pong' });
-    return true;
+// 修改配置更新处理
+chrome.runtime.onMessage.addListener(async (message) => {
+  if (message.type === 'optionsUpdated') {
+    console.log('收到配置更新，准备重建菜单');
+    try {
+      // 添加延迟确保操作顺序
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const options = await chrome.storage.sync.get(defaultOptions);
+      await createMenus(options);
+    } catch (error) {
+      console.error('菜单更新失败:', error);
+    }
   }
 });

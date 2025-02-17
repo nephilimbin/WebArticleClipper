@@ -1,5 +1,4 @@
-import './browser-polyfill.min.js';
-import { defaultOptions } from '../shared/default-options.js';
+import { defaultOptions } from '/shared/default-options.js';
 
 let options = defaultOptions;
 let keyupTimeout = null;
@@ -42,53 +41,26 @@ const saveOptions = (e) => {
   save();
 };
 
-const save = () => {
+const save = async () => {
   const spinner = document.getElementById('spinner');
   spinner.style.display = 'block';
-  browser.storage.sync
-    .set(options)
-    .then(() => {
-      browser.contextMenus.update('toggle-includeTemplate', {
-        checked: options.includeTemplate,
-      });
-      try {
-        browser.contextMenus.update('tabtoggle-includeTemplate', {
-          checked: options.includeTemplate,
-        });
-      } catch {}
+  try {
+    await chrome.storage.sync.set(options);
 
-      browser.contextMenus.update('toggle-downloadImages', {
-        checked: options.downloadImages,
-      });
-      try {
-        browser.contextMenus.update('tabtoggle-downloadImages', {
-          checked: options.downloadImages,
-        });
-      } catch {}
-    })
-    .then(() => {
-      document.querySelectorAll('.status').forEach((statusEl) => {
-        statusEl.textContent = 'Options Saved 💾';
-        statusEl.classList.remove('error');
-        statusEl.classList.add('success');
-        statusEl.style.opacity = 1;
-      });
-      setTimeout(() => {
-        document.querySelectorAll('.status').forEach((statusEl) => {
-          statusEl.style.opacity = 0;
-        });
-      }, 5000);
-      spinner.style.display = 'none';
-    })
-    .catch((err) => {
-      document.querySelectorAll('.status').forEach((statusEl) => {
-        statusEl.textContent = err;
-        statusEl.classList.remove('success');
-        statusEl.classList.add('error');
-        statusEl.style.opacity = 1;
-      });
-      spinner.style.display = 'none';
+    // 添加菜单重建逻辑
+    const { createMenus } = await import('/shared/context-menus.js');
+    await createMenus(options);
+
+    console.log('配置保存成功，菜单已更新');
+  } catch (err) {
+    console.error('保存失败:', err);
+    document.querySelectorAll('.status').forEach((statusEl) => {
+      statusEl.textContent = err;
+      statusEl.classList.add('error');
     });
+  } finally {
+    spinner.style.display = 'none';
+  }
 };
 
 function hideStatus() {
@@ -100,7 +72,7 @@ const setCurrentChoice = (result) => {
 
   // if browser doesn't support the download api (i.e. Safari)
   // we have to use contentLink download mode
-  if (!browser.downloads) {
+  if (!chrome.downloads) {
     options.downloadMode = 'contentLink';
     document.querySelectorAll("[name='downloadMode']").forEach((el) => (el.disabled = true));
     document.querySelector('#downloadMode p').innerText = 'The Downloas API is unavailable in this browser.';
@@ -147,12 +119,25 @@ const setCurrentChoice = (result) => {
   refereshElements();
 };
 
-const restoreOptions = () => {
-  const onError = (error) => {
-    console.error(error);
-  };
+const restoreOptions = async () => {
+  try {
+    const result = await chrome.storage.sync.get(null);
+    console.log('从存储加载的原始数据:', result);
 
-  browser.storage.sync.get(defaultOptions).then(setCurrentChoice, onError);
+    const merged = {
+      ...defaultOptions,
+      ...result,
+      mathRendering: {
+        ...defaultOptions.mathRendering,
+        ...(result.mathRendering || {}),
+      },
+    };
+    setCurrentChoice(merged);
+    refereshElements();
+  } catch (error) {
+    console.error('配置加载失败:', error);
+    document.getElementById('status').textContent = `配置加载失败: ${error.message}`;
+  }
 };
 
 function textareaInput() {
@@ -205,7 +190,7 @@ const inputChange = (e) => {
         let lines = ev.target.result;
         options = JSON.parse(lines);
         setCurrentChoice(options);
-        browser.contextMenus.removeAll();
+        chrome.contextMenus.removeAll();
         createMenus();
         save();
         refereshElements();
@@ -219,7 +204,7 @@ const inputChange = (e) => {
         if (value) {
           createMenus();
         } else {
-          browser.contextMenus.removeAll();
+          chrome.contextMenus.removeAll();
         }
       }
 
@@ -245,7 +230,7 @@ const buttonClick = (e) => {
     var d = new Date();
 
     var datestring = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
-    browser.downloads.download({
+    chrome.downloads.download({
       url: url,
       saveAs: true,
       filename: `MarkDownload-export-${datestring}.json`,
@@ -253,23 +238,36 @@ const buttonClick = (e) => {
   }
 };
 
-const loaded = () => {
-  document.querySelectorAll('.radio-container,.checkbox-container,.textbox-container,.button-container').forEach((container) => {
-    container.dataset.height = container.clientHeight;
-  });
+const init = async () => {
+  try {
+    await new Promise((resolve) => {
+      const checkElements = () => {
+        if (document.querySelector("[name='title']")) resolve();
+        else setTimeout(checkElements, 50);
+      };
+      checkElements();
+    });
 
-  restoreOptions();
+    await restoreOptions();
 
-  document.querySelectorAll('input,textarea,button').forEach((input) => {
-    if (input.tagName == 'TEXTAREA' || input.type == 'text') {
-      input.addEventListener('keyup', inputKeyup);
-    } else if (input.tagName == 'BUTTON') {
-      input.addEventListener('click', buttonClick);
-    } else input.addEventListener('change', inputChange);
-  });
+    document.querySelectorAll('input,textarea,button').forEach((input) => {
+      if (input.tagName === 'TEXTAREA' || input.type === 'text') {
+        input.addEventListener('keyup', inputKeyup);
+      } else if (input.tagName === 'BUTTON') {
+        input.addEventListener('click', buttonClick);
+      } else {
+        input.addEventListener('change', inputChange);
+      }
+    });
+  } catch (error) {
+    console.error('初始化失败:', error);
+  }
 };
 
-document.addEventListener('DOMContentLoaded', loaded);
+document.addEventListener('DOMContentLoaded', () => {
+  init().catch(console.error);
+});
+
 document.querySelectorAll('.save').forEach((el) => el.addEventListener('click', saveOptions));
 document.querySelectorAll('.status').forEach((el) => el.addEventListener('click', hideStatus));
 document.querySelectorAll('.input-sizer > textarea').forEach((el) => el.addEventListener('input', textareaInput));
