@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Markdown Web Clipper (Enhanced)",
-  "version": "3.5.0",
+  "version": "3.6.0",
   "author": "Gordon Pedsersen (Enhanced by zzb)",
   "description": "This is an enhanced version of the original Markdown Web Clipper with improved image handling, MathJax support, and more features.",
   "icons": {

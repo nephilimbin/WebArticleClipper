@@ -1,6 +1,6 @@
 # Changelog
 
-## [3.5.0] - 2024-03-15
+## [3.6.0] - 2025-02-19
 
 ### Changed
 - 升级Manifest至V3规范
@@ -38,7 +38,7 @@
   - 默认不隐藏图片链接
 - 开发工具改进
   - 添加 web-ext-config.js 配置文件
-  - 新增 Mac 专用的 Chrome 和 Firefox 测试脚本
+  - 新增 Mac 专用的 Chrome 和 Edge 测试脚本
   - 添加便捷开发命令
   - 新增特定 GitHub 仓库测试 URL
 
@@ -69,34 +69,3 @@
 - 修复内容脚本消息处理器缺失问题
 - 完善后台与内容脚本的通信机制
 
-## [3.5.1] - 2024-03-20
-### Fixed
-- 修正表格对齐映射规则
-- 增强任务列表项内容提取
-- 优化真实网页测试选择器
-### Changed
-- 使用更灵活的正则表达式进行断言
-
-## [3.4.0]
-- Fixed extra spaces in titles which could cause issues (thanks @rickdoesdev !)
-- Fixed an issue with image paths in some circumstances (thanks @rickdoesdev !)
-- Added parametersizations for "mixed-kebab" and "mixed_snake" which retain original casing but replace spaces (thanks @NSHenry !)
-  - Also added a special "obsidian-cal" parameterization which is the same as "mixed-kebab" with duplicate `-` removed for additional compatibility with the Obsidian Consistent Attachment Location plugin (thanks @NSHenry !)
-- Added lowecase and uppercase options to parameterizations (thanks @redxtech !)
-- Updated Turndown to v7.1.3 (thanks @WeHat !)
-- Updated Readability to v0.5.0 (thanks @WeHat !)
-- Fixed some issues with code block parsing and formatting (thanks @WeHat !)
-- Fixed an issue with some sites missing a proper title (thanks @WeHat !)
-- Fixed an issue with bad base urls causing issues with links in certain circumstances (thanks @WeHat !)
-- Fixed an issue with readability removing everything in certain circumstances (thanks @WeHat !)
-- Send properly configured title to the Obsidian integration (thanks @nekton39 !)
-- Updates to the README (thanks @2gn and @eugenesvk !)
-
-## [3.5.0] - 2023-12-01
-### Fixed
-- 修复弹出窗口重复获取配置的问题
-- 优化下载消息处理流程
-
-## [3.5.1] - 2024-02-20
-### Removed
-- 移除未使用的Base64转换功能(image-handler.js)

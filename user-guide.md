@@ -30,37 +30,11 @@ The popup also includes the option to "Include front/back template". This is ext
 ## Context Menu
 A couple of options are available in the context menu by right clicking on a page and hovering over the MarkDownload option.
 
-### Download Tab as Markdown
-Select this option to download the current tab as a Markdown file, without having to open the popup. You can also set up a shortcut key for this functionality in your browser's settings (<kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>M</kbd> by default)
-
-### Download Selection as Markdown
-Select this option to download the currently selected section of the web page as a Markdown file, without having to open the popup
-
-### Download All Tabs as Markdown
-Selecting this option will download all open tabs in the current window as Markdown files.
-
-### Copy Tab as Markdown
-This converts the current tab's content as Markdown and copies it to the clipboard, so you can paste it in another program
-
-### Copy Selection as Markdown
-This converts the  currently selected section of the web page as Markdown and copies it to the clipboard, so you can paste it in another program
-
-### Copy Tab URL as Markdown Link
-Copys the current tab's url and title as a Markdown link to be pasted into another Markdown document
-
-### Copy Selected Tabs as Markdown Link
-Copys all selected tabs into Markdown link to be pasted into another Markdown document
-
-### Copy Link as Markdown
-**Only when right-clicking on a link**  
-Copies the selected link as a Markdown link to be pasted into another Markdown document
-
-### Copy Image as Markdown
-**Only when right-clicking on an image**  
-Copies the selected image as a Markdown image embed to be pasted into another Markdown document
-
 ### Include Front/Back Template
 This allows you to toggle the setting via the context menu — for if you would like the templates to be included without using the popup. As mentioned above,  you can customize the templates in the [Front/Back Templates](#Front%2FBack%20Templates)
+
+### Download Images
+Allow you to choose whether to download images, clicking the checkbox will be regarded as needing to download images. [Download Images](#Front%2FBack%20Templates)
 
 ## Extension Options
 One of the best features of MarkDownload is that it is highly customizable. Open the extension's options and tweak things to work the way *you* want them to.
@@ -223,14 +197,7 @@ Figure 1:
 ```markdown
 ![](folder/image.jpg)
 ```
-- Obsidian internal embed
-```markdown
-![[folder/image.jpg]]
-```
-- Obsidian internal embed (no folder prefix)
-```markdown
-![[image.jpg]]
-```
+
 
 ### Escape Markdown Characters
 By default, backslashes (`\`) are used to escape Markdown characters in the HTML input. This ensures that these characters are not interpreted as Markdown. For example, the contents of `<h1>1. Hello world</h1>` needs to be escaped to `1\. Hello world`, otherwise it will be interpreted as a list item rather than a heading.
