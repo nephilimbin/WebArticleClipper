@@ -1,6 +1,6 @@
-# MarkDownload - Markdown Web Clipper (Enhanced Version)
+# Markdown Web Clipper (Enhanced Version)
 
-> **重要说明**：本项目是基于 [deathau/markdownload](https://github.com/deathau/markdownload) 的增强版本。我使用Cursor工具对原项目进行了bug修复和功能增强，以提供更好的用户体验。
+> **重要说明**：本项目是基于 [deathau/markdownload](https://github.com/deathau/markdownload) 的增强版本。使用Cursor工具对原项目进行了bug修复和功能增强，以提供更好的用户体验。
 >
 > **主要改进**：
 > - 增强的图片处理功能
@@ -54,12 +54,8 @@ See the [Markdownload User Guide](https://github.com/nephilimbin/WebArticleClipp
   - Local image path conversion
 
 # Installation
-The extension is available for 
-[Firefox](https://addons.mozilla.org/en-GB/firefox/addon/markdownload/), 
-[Google Chrome](https://chrome.google.com/webstore/detail/markdownload-markdown-web/pcmpcfapbekmbjjkdalcgopdkipoggdi), 
-[Microsoft Edge](https://microsoftedge.microsoft.com/addons/detail/hajanaajapkhaabfcofdjgjnlgkdkknm) and [Safari](https://apple.co/3tcU0pD).
-
-
+The extension is available for [Google Chrome] and [Microsoft Edge]
+You can search for the software name to find it. 
 
 # Local Development
 
@@ -71,7 +67,7 @@ The extension is available for
 ## Setup
 1. Clone the repository
 ```bash
-git clone https://github.com/deathau/markdownload.git
+git clone https://github.com/nephilimbin/WebArticleClipper.git
 cd markdownload
 ```
 
