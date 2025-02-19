@@ -13,4 +13,5 @@ yarn-error.log*
 .env.production.local
 dist/
 build/
-web-ext-artifacts/
+backup/
+media/
