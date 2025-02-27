@@ -1,43 +1,133 @@
-import Readability from './Readability.js';
-import { defaultOptions, getOptions } from './shared/default-options.js';
+/**
+ * clipSite.js - 网页内容抓取和解析工具
+ * 支持在 Node.js 和浏览器环境中运行
+ */
+
+// 检测运行环境
+const isNode = typeof window === 'undefined' || !window.document;
+
+// 根据环境导入依赖
+let Readability, https, fs, path, JSDOM, URL, fileURLToPath;
+
+if (isNode) {
+  // Node.js 环境
+  const module = await import('module');
+  const require = module.createRequire(import.meta.url);
+
+  https = await import('https');
+  fs = await import('fs/promises');
+  path = await import('path');
+  JSDOM = (await import('jsdom')).JSDOM;
+  URL = global.URL;
+  fileURLToPath = (await import('url')).fileURLToPath;
+
+  // 设置 Node.js 环境
+  const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
+    url: 'https://example.com/',
+    referrer: 'https://example.com/',
+    contentType: 'text/html',
+  });
+
+  global.DOMParser = dom.window.DOMParser;
+  global.document = dom.window.document;
+
+  // 创建自定义 crypto 对象
+  if (!global.window) {
+    global.window = {
+      crypto: {
+        getRandomValues: (arr) => {
+          for (let i = 0; i < arr.length; i++) {
+            arr[i] = Math.floor(Math.random() * 1000000);
+          }
+          return arr;
+        },
+      },
+      location: { href: 'https://example.com/' },
+      navigator: {
+        userAgent: 'Mozilla/5.0 (Node.js)',
+      },
+    };
+  }
+
+  // 尝试导入 Readability
+  try {
+    Readability = (await import('./Readability.js')).default;
+  } catch (e) {
+    console.warn('无法导入本地 Readability.js，尝试使用 @mozilla/readability');
+    try {
+      Readability = require('@mozilla/readability').Readability;
+    } catch (e2) {
+      throw new Error('无法加载 Readability 库，请确保已安装依赖');
+    }
+  }
+} else {
+  // 浏览器环境
+  try {
+    Readability = (await import('./Readability.js')).default;
+  } catch (e) {
+    console.error('无法加载 Readability 库:', e);
+    throw e;
+  }
+}
+
+// 修改 TurndownService 导入部分
+let TurndownService, gfmPlugin;
+
+if (isNode) {
+  // Node.js 环境
+  try {
+    // 尝试从本地 lib 目录导入
+    TurndownService = (await import('./lib/turndown.js')).default;
+    gfmPlugin = (await import('./lib/turndown-plugin-gfm.js')).gfmPlugin;
+  } catch (e) {
+    console.warn('无法从 lib 目录导入 Turndown，尝试使用 npm 包', e);
+    try {
+      const module = await import('module');
+      const require = module.createRequire(import.meta.url);
+      TurndownService = require('turndown');
+      gfmPlugin = require('turndown-plugin-gfm').gfmPlugin;
+    } catch (e2) {
+      console.error('无法加载 Turndown 库:', e2);
+      throw new Error('无法加载 Turndown 库，请确保已安装依赖');
+    }
+  }
+} else {
+  // 浏览器环境
+  try {
+    TurndownService = (await import('./lib/turndown.js')).default;
+    gfmPlugin = (await import('./lib/turndown-plugin-gfm.js')).gfmPlugin;
+  } catch (e) {
+    console.error('无法加载 Turndown 库:', e);
+    throw e;
+  }
+}
+
+// 默认选项
+const defaultOptions = {
+  mathJaxRendering: true,
+  autoSanitize: true,
+  clipSelection: true,
+  keepClasses: false,
+  headingStyle: 'atx',
+  hr: '___',
+  bulletListMarker: '-',
+  codeBlockStyle: 'fenced',
+  fence: '```',
+  emDelimiter: '_',
+  strongDelimiter: '**',
+  linkStyle: 'inlined',
+  imageStyle: 'markdown',
+  disallowedChars: '[]#^',
+  hidePictureMdUrl: false,
+};
 
 /**
- * 主函数：根据URL获取网页内容并解析为文章对象
- * @param {string} url - 要抓取的网页URL
- * @param {Object} options - 可选的配置选项
- * @returns {Promise<Object>} - 解析后的文章对象
+ * 获取配置选项
+ * @returns {Promise<Object>} 配置选项
  */
-async function clipSiteByUrl(url, customOptions = {}) {
-  try {
-    console.log('开始抓取URL:', url);
-
-    // 获取配置选项
-    const options = customOptions.useDefaultOnly ? { ...defaultOptions, ...customOptions } : await getOptions().then((opts) => ({ ...opts, ...customOptions }));
-
-    console.log('使用配置选项:', options);
-
-    // 获取网页内容
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`HTTP错误: ${response.status}`);
-    }
-
-    const html = await response.text();
-    console.log('获取到HTML内容，长度:', html.length);
-
-    // 解析DOM获取文章
-    const article = await getArticleFromDom(html, options);
-
-    if (!article?.content) {
-      throw new Error('无法解析文章内容');
-    }
-
-    console.log('成功解析文章:', article.title);
-    return article;
-  } catch (error) {
-    console.error('抓取失败:', error);
-    throw error;
-  }
+async function getOptions() {
+  // 在 Node.js 环境中返回默认选项
+  return defaultOptions;
 }
 
 /**
@@ -49,7 +139,9 @@ async function clipSiteByUrl(url, customOptions = {}) {
 async function getArticleFromDom(domString, options = {}) {
   try {
     console.log('开始解析DOM，原始数据长度:', domString?.length);
-    console.debug('DOM前200字符:', domString?.slice(0, 200));
+
+    // 合并选项
+    options = { ...defaultOptions, ...options };
 
     // 添加前置校验
     if (!domString || domString.length < 100) {
@@ -70,7 +162,7 @@ async function getArticleFromDom(domString, options = {}) {
       // 生成随机ID的函数
       const generateRandomId = () => {
         const array = new Uint32Array(1);
-        crypto.getRandomValues(array);
+        window.crypto.getRandomValues(array);
         return 'math-' + array[0].toString(36);
       };
 
@@ -79,6 +171,7 @@ async function getArticleFromDom(domString, options = {}) {
         const type = mathSource.getAttribute('type');
         const id = generateRandomId();
         mathSource.id = id;
+        mathSource.textContent = mathSource.textContent.trim();
         math[id] = {
           tex: mathSource.textContent,
           inline: type ? !type.includes('mode=display') : false,
@@ -158,20 +251,6 @@ async function getArticleFromDom(domString, options = {}) {
       throw new Error('Readability解析返回空结果');
     }
 
-    console.debug(
-      '解析响应结构:',
-      JSON.stringify(
-        {
-          title: article.title,
-          byline: article.byline,
-          excerpt: article.excerpt,
-          contentLength: article.content?.length,
-        },
-        null,
-        2
-      )
-    );
-
     // 提取元数据
     const url = new URL(dom.baseURI || 'about:blank');
     article.baseURI = dom.baseURI || url.href;
@@ -211,16 +290,251 @@ async function getArticleFromDom(domString, options = {}) {
       // 例如移除特定标签、属性等
     }
 
-    console.debug('文章元数据:', {
-      title: article.title,
-      contentLength: article.content.length,
-      baseURI: article.baseURI,
-    });
-
     console.log('DOM解析完成，文章标题:', article.title);
     return article;
   } catch (error) {
     console.error('DOM解析失败:', error.message);
+    throw error;
+  }
+}
+
+/**
+ * 根据环境选择不同的网络请求方法
+ * @param {string} url - 请求URL
+ * @param {Object} headers - 请求头
+ * @returns {Promise<string>} - HTML内容
+ */
+async function fetchContent(url, headers = {}) {
+  // 默认请求头
+  const defaultHeaders = {
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+    'Cache-Control': 'max-age=0',
+    Connection: 'keep-alive',
+    'Upgrade-Insecure-Requests': '1',
+  };
+
+  // 合并请求头
+  const mergedHeaders = { ...defaultHeaders, ...headers };
+
+  // 检查URL是否需要Cookie
+  const urlObj = new URL(url);
+  const needsCookie = checkIfSiteNeedsCookie(urlObj.hostname);
+
+  if (needsCookie && !hasCookieHeader(mergedHeaders)) {
+    console.warn(`警告: ${urlObj.hostname} 可能需要Cookie才能访问`);
+  }
+
+  if (isNode) {
+    // Node.js 环境使用 https
+    return new Promise((resolve, reject) => {
+      // 解析URL以获取主机名和路径
+      const options = {
+        hostname: urlObj.hostname,
+        path: urlObj.pathname + urlObj.search,
+        method: 'GET',
+        headers: mergedHeaders,
+        // 添加超时设置
+        timeout: 30000, // 30秒超时
+      };
+
+      console.log('请求选项:', {
+        url: url,
+        hostname: options.hostname,
+        path: options.path,
+      });
+
+      const req = https.request(options, (res) => {
+        console.log('状态码:', res.statusCode);
+
+        // 处理重定向
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          console.log(`重定向到: ${res.headers.location}`);
+          return fetchContent(res.headers.location, mergedHeaders).then(resolve).catch(reject);
+        }
+
+        // 处理403错误 - 需要Cookie
+        if (res.statusCode === 403) {
+          if (needsCookie) {
+            // 创建一个空的HTML模板，包含错误信息
+            const errorHtml = createErrorHtml(url, '此网站需要Cookie才能访问');
+            console.warn('返回空内容模板，因为网站需要Cookie');
+            resolve(errorHtml);
+            return;
+          } else {
+            reject(new Error(`HTTP错误: 403 - 访问被拒绝，可能需要登录或更完整的Cookie`));
+            return;
+          }
+        }
+
+        // 处理其他错误
+        if (res.statusCode !== 200) {
+          if (res.statusCode === 404) {
+            const errorHtml = createErrorHtml(url, '页面不存在 (404)');
+            console.warn('返回空内容模板，因为页面不存在');
+            resolve(errorHtml);
+            return;
+          } else {
+            reject(new Error(`HTTP错误: ${res.statusCode}`));
+            return;
+          }
+        }
+
+        let data = '';
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
+
+        res.on('end', () => {
+          resolve(data);
+        });
+      });
+
+      // 添加错误处理
+      req.on('error', (e) => {
+        console.error('请求错误:', e);
+        reject(new Error(`请求错误: ${e.message}`));
+      });
+
+      // 添加超时处理
+      req.on('timeout', () => {
+        req.destroy();
+        reject(new Error('请求超时'));
+      });
+
+      req.end();
+    });
+  } else {
+    // 浏览器环境使用 fetch
+    try {
+      const response = await fetch(url, {
+        headers: mergedHeaders,
+        // 添加超时设置
+        signal: AbortSignal.timeout(30000), // 30秒超时
+      });
+
+      // 处理403错误 - 需要Cookie
+      if (response.status === 403) {
+        if (needsCookie) {
+          // 创建一个空的HTML模板，包含错误信息
+          const errorHtml = createErrorHtml(url, '此网站需要Cookie才能访问');
+          console.warn('返回空内容模板，因为网站需要Cookie');
+          return errorHtml;
+        } else {
+          throw new Error(`HTTP错误: 403 - 访问被拒绝，可能需要登录或更完整的Cookie`);
+        }
+      }
+
+      // 处理其他错误
+      if (!response.ok) {
+        if (response.status === 404) {
+          const errorHtml = createErrorHtml(url, '页面不存在 (404)');
+          console.warn('返回空内容模板，因为页面不存在');
+          return errorHtml;
+        } else {
+          throw new Error(`HTTP错误: ${response.status}`);
+        }
+      }
+
+      return response.text();
+    } catch (error) {
+      console.error('Fetch错误:', error);
+      throw error;
+    }
+  }
+}
+
+/**
+ * 检查网站是否需要Cookie
+ * @param {string} hostname - 主机名
+ * @returns {boolean} - 是否需要Cookie
+ */
+function checkIfSiteNeedsCookie(hostname) {
+  // 已知需要Cookie的网站列表
+  const sitesNeedingCookie = ['zhihu.com', 'zhuanlan.zhihu.com', 'medium.com', 'juejin.cn', 'weibo.com', 'twitter.com', 'x.com', 'facebook.com', 'instagram.com'];
+
+  return sitesNeedingCookie.some((site) => hostname.includes(site));
+}
+
+/**
+ * 检查请求头中是否有Cookie
+ * @param {Object} headers - 请求头
+ * @returns {boolean} - 是否有Cookie
+ */
+function hasCookieHeader(headers) {
+  return !!headers.Cookie || !!headers.cookie;
+}
+
+/**
+ * 创建错误HTML模板
+ * @param {string} url - 请求的URL
+ * @param {string} message - 错误信息
+ * @returns {string} - HTML模板
+ */
+function createErrorHtml(url, message) {
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>访问受限 - ${new URL(url).hostname}</title>
+  <meta charset="UTF-8">
+</head>
+<body>
+  <article>
+    <h1>无法访问此内容</h1>
+    <p>${message}</p>
+    <p>URL: ${url}</p>
+    <div class="content">
+      <p>此网站需要登录或Cookie才能访问内容。请考虑以下选项：</p>
+      <ul>
+        <li>在浏览器中登录此网站，然后尝试使用浏览器扩展版本</li>
+        <li>提供有效的Cookie到请求头中</li>
+        <li>尝试其他不需要登录的网站</li>
+      </ul>
+    </div>
+  </article>
+</body>
+</html>
+  `;
+}
+
+/**
+ * 主函数：根据URL获取网页内容并解析为文章对象
+ * @param {string} url - 要抓取的网页URL
+ * @param {Object} customOptions - 自定义选项
+ * @returns {Promise<Object>} - 解析后的文章对象
+ */
+async function clipSiteByUrl(url, customOptions = {}) {
+  try {
+    console.log('开始抓取URL:', url);
+
+    // 获取配置选项
+    const options = { ...defaultOptions, ...customOptions };
+
+    // 获取网页内容
+    const html = await fetchContent(url, customOptions.headers);
+    console.log('获取到HTML内容，长度:', html.length);
+
+    // 解析DOM获取文章
+    const article = await getArticleFromDom(html, options);
+
+    if (!article?.content) {
+      throw new Error('无法解析文章内容');
+    }
+
+    // 如果在Node环境中，保存结果到文件
+    if (isNode && options.saveToFile) {
+      const __dirname = path.dirname(fileURLToPath(import.meta.url));
+      await fs.writeFile(path.join(__dirname, 'article-result.json'), JSON.stringify(article, null, 2));
+      await fs.writeFile(path.join(__dirname, 'article-content.html'), article.content);
+      console.log('已保存结果到文件');
+    }
+
+    console.log('成功解析文章:', article.title);
+    return article;
+  } catch (error) {
+    console.error('抓取失败:', error);
     throw error;
   }
 }
@@ -238,9 +552,6 @@ function getSelectionAndDom() {
     // 获取完整DOM
     const dom = document.documentElement.outerHTML;
 
-    console.debug('DOM内容长度:', dom?.length);
-    console.debug('选中内容长度:', selection?.length);
-
     return { selection, dom };
   } catch (e) {
     console.error('获取DOM和选中内容失败:', e);
@@ -249,61 +560,526 @@ function getSelectionAndDom() {
 }
 
 /**
- * 剪切网页内容
- * @param {number} tabId - 浏览器标签页ID
- * @param {Object} customOptions - 自定义选项
- * @returns {Promise<Object>} 剪切结果
+ * 验证URI，确保是完整的URL
+ * @param {string} href - 原始URI
+ * @param {string} baseURI - 基础URI
+ * @returns {string} - 验证后的URI
  */
-async function clipSite(tabId, customOptions = {}) {
+function validateUri(href, baseURI) {
   try {
-    // 获取配置
-    const options = await getOptions().then((opts) => ({ ...opts, ...customOptions }));
+    new URL(href);
+  } catch {
+    const baseUrl = new URL(baseURI);
 
-    // 执行内容脚本获取DOM和选中内容
-    const results = await chrome.scripting.executeScript({
-      target: { tabId: tabId },
-      func: getSelectionAndDom,
+    if (href.startsWith('/')) {
+      href = baseUrl.origin + href;
+    } else {
+      href = baseUrl.href + (baseUrl.href.endsWith('/') ? '' : '/') + href;
+    }
+  }
+  return href;
+}
+
+/**
+ * 生成有效的文件名
+ * @param {string} title - 原始标题
+ * @param {string} disallowedChars - 不允许的字符
+ * @returns {string} - 处理后的文件名
+ */
+function generateValidFileName(title, disallowedChars = null) {
+  if (typeof title !== 'string') {
+    console.warn('无效的标题类型:', typeof title);
+    title = String(title || '');
+  }
+
+  // 移除非法字符
+  var illegalRe = /[\/\?<>\\:\*\|":]/g;
+  var name = title.replace(illegalRe, '').replace(new RegExp('\u00A0', 'g'), ' ').replace(new RegExp(/\s+/, 'g'), ' ').trim();
+
+  if (disallowedChars) {
+    for (let c of disallowedChars) {
+      if (`[\\^$.|?*+()`.includes(c)) c = `\\${c}`;
+      name = name.replace(new RegExp(c, 'g'), '');
+    }
+  }
+
+  return name;
+}
+
+/**
+ * 获取图片文件名
+ * @param {string} src - 图片源URL
+ * @param {Object} options - 配置选项
+ * @param {boolean} prependFilePath - 是否添加文件路径前缀
+ * @returns {string} - 图片文件名
+ */
+function getImageFilename(src, options, prependFilePath = true) {
+  const slashPos = src.lastIndexOf('/');
+  const queryPos = src.indexOf('?');
+  let filename = src.substring(slashPos + 1, queryPos > 0 ? queryPos : src.length);
+
+  let imagePrefix = options.imagePrefix || '';
+
+  if (prependFilePath) {
+    const validFolderName = generateValidFileName(options.title, options.disallowedChars);
+    imagePrefix = `${validFolderName}/`;
+  }
+
+  if (filename.includes(';base64,')) {
+    filename = 'image.' + filename.substring(0, filename.indexOf(';'));
+  }
+
+  let extension = filename.substring(filename.lastIndexOf('.'));
+  if (extension == filename) {
+    filename = filename + '.png';
+  }
+
+  filename = generateValidFileName(filename, options.disallowedChars);
+
+  return imagePrefix + filename;
+}
+
+/**
+ * 替换文本中的占位符
+ * @param {string} string - 包含占位符的字符串
+ * @param {Object} article - 文章对象
+ * @param {string} disallowedChars - 不允许的字符
+ * @returns {string} - 替换后的字符串
+ */
+function textReplace(string, article, disallowedChars = null) {
+  // 检查输入参数
+  if (typeof string !== 'string') {
+    console.warn('textReplace: 输入不是字符串类型:', typeof string);
+    return '';
+  }
+
+  if (!article || typeof article !== 'object') {
+    console.warn('textReplace: 文章对象无效');
+    return string;
+  }
+
+  try {
+    // 字段替换
+    for (const key in article) {
+      if (article.hasOwnProperty(key) && key !== 'content') {
+        // 确保值是字符串
+        let s = '';
+        if (article[key] !== undefined && article[key] !== null) {
+          s = String(article[key]);
+        }
+
+        if (s && disallowedChars) {
+          s = generateValidFileName(s, disallowedChars);
+        }
+
+        // 执行各种替换
+        string = string
+          .replace(new RegExp('{' + key + '}', 'g'), s)
+          .replace(new RegExp('{' + key + ':lower}', 'g'), s.toLowerCase())
+          .replace(new RegExp('{' + key + ':upper}', 'g'), s.toUpperCase())
+          .replace(new RegExp('{' + key + ':kebab}', 'g'), s.replace(/ /g, '-').toLowerCase())
+          .replace(new RegExp('{' + key + ':mixed-kebab}', 'g'), s.replace(/ /g, '-'))
+          .replace(new RegExp('{' + key + ':snake}', 'g'), s.replace(/ /g, '_').toLowerCase())
+          .replace(new RegExp('{' + key + ':mixed_snake}', 'g'), s.replace(/ /g, '_'))
+          .replace(new RegExp('{' + key + ':obsidian-cal}', 'g'), s.replace(/ /g, '-').replace(/-{2,}/g, '-'))
+          .replace(
+            new RegExp('{' + key + ':camel}', 'g'),
+            s.replace(/ ./g, (str) => str.trim().toUpperCase()).replace(/^./, (str) => str.toLowerCase())
+          )
+          .replace(
+            new RegExp('{' + key + ':pascal}', 'g'),
+            s.replace(/ ./g, (str) => str.trim().toUpperCase()).replace(/^./, (str) => str.toUpperCase())
+          );
+      }
+    }
+
+    // 处理日期
+    const now = new Date();
+    const dateRegex = /{date:(.+?)}/g;
+    const matches = string.match(dateRegex);
+    if (matches && matches.length > 0) {
+      matches.forEach((match) => {
+        const format = match.substring(6, match.length - 1);
+        // 简化的日期格式化
+        const dateString = now.toISOString().split('T')[0];
+        string = string.replace(match, dateString);
+      });
+    }
+
+    // 处理关键字
+    const keywordRegex = /{keywords:?(.*)?}/g;
+    const keywordMatches = string.match(keywordRegex);
+    if (keywordMatches && keywordMatches.length > 0) {
+      keywordMatches.forEach((match) => {
+        let separator = match.substring(10, match.length - 1);
+        const keywordsArray = Array.isArray(article.keywords) ? article.keywords : [];
+        const keywordsString = keywordsArray.join(separator || '');
+        string = string.replace(match, keywordsString);
+      });
+    }
+
+    // 移除剩余的花括号占位符
+    const defaultRegex = /{(.*?)}/g;
+    string = string.replace(defaultRegex, '');
+
+    return string;
+  } catch (error) {
+    console.error('textReplace 错误:', error);
+    return string;
+  }
+}
+
+/**
+ * 将文章内容转换为Markdown
+ * @param {string} content - HTML内容
+ * @param {Object} options - 配置选项
+ * @param {Object} article - 文章对象
+ * @returns {Object} - 包含markdown和imageList的对象
+ */
+function turndownProcessing(content, options, article) {
+  if (!content || typeof content !== 'string') {
+    console.warn('turndownProcessing: 内容为空或不是字符串');
+    content = '<p>无内容</p>';
+  }
+
+  if (!article || typeof article !== 'object') {
+    console.warn('turndownProcessing: 文章对象无效');
+    article = { baseURI: 'about:blank', math: {} };
+  }
+
+  if (!article.math) {
+    article.math = {};
+  }
+
+  // 设置 escape 方法
+  if (options.turndownEscape) {
+    TurndownService.prototype.escape =
+      TurndownService.prototype.defaultEscape ||
+      function (text) {
+        return text.replace(/\*/g, '\\*').replace(/_/g, '\\_').replace(/\[/g, '\\[').replace(/\]/g, '\\]').replace(/\(/g, '\\(').replace(/\)/g, '\\)').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      };
+  } else {
+    TurndownService.prototype.escape = (s) => s;
+  }
+
+  // 创建 Turndown 服务实例
+  const turndownService = new TurndownService(options);
+
+  // 使用 GFM 插件
+  if (gfmPlugin) {
+    turndownService.use(gfmPlugin);
+  }
+
+  // 保留特定标签
+  turndownService.keep(['iframe', 'sub', 'sup', 'u', 'ins', 'del', 'small', 'big']);
+
+  // 图片处理规则
+  const imageList = {};
+  turndownService.addRule('images', {
+    filter: function (node, tdopts) {
+      if (node.nodeName == 'IMG' && node.getAttribute('src')) {
+        let src = node.getAttribute('src');
+        const validatedSrc = validateUri(src, article.baseURI);
+        node.setAttribute('src', validatedSrc);
+
+        if (options.downloadImages) {
+          let imageFilename = getImageFilename(validatedSrc, options, false);
+          if (!imageList[validatedSrc] || imageList[validatedSrc] != imageFilename) {
+            let i = 1;
+            while (Object.values(imageList).includes(imageFilename)) {
+              const parts = imageFilename.split('.');
+              if (i == 1) parts.splice(parts.length - 1, 0, i++);
+              else parts.splice(parts.length - 2, 1, i++);
+              imageFilename = parts.join('.');
+            }
+            imageList[validatedSrc] = imageFilename;
+          }
+        }
+        if (options.hidePictureMdUrl) {
+          return true;
+        }
+      }
+      return node.nodeName === 'IMG';
+    },
+    replacement: function (content, node, tdopts) {
+      if (options.hidePictureMdUrl) {
+        return '';
+      }
+      var alt = node.alt || '';
+      var src = node.getAttribute('src') || '';
+      var title = node.title || '';
+      var titlePart = title ? ' "' + title + '"' : '';
+      return src ? '![' + alt + ']' + '(' + src + titlePart + ')' : '';
+    },
+  });
+
+  // 链接处理规则
+  turndownService.addRule('links', {
+    filter: (node, tdopts) => {
+      if (node.nodeName == 'A' && node.getAttribute('href')) {
+        const href = node.getAttribute('href');
+        const validatedHref = validateUri(href, article.baseURI);
+        node.setAttribute('href', validatedHref);
+
+        const img = node.querySelector('img');
+        if (img) {
+          const src = img.getAttribute('src');
+          if (options.downloadImages && src) {
+            const validatedSrc = validateUri(src, article.baseURI);
+            let imageFilename = getImageFilename(validatedSrc, options, false);
+            if (!imageList[validatedSrc] || imageList[validatedSrc] != imageFilename) {
+              let i = 1;
+              while (Object.values(imageList).includes(imageFilename)) {
+                const parts = imageFilename.split('.');
+                if (i == 1) parts.splice(parts.length - 1, 0, i++);
+                else parts.splice(parts.length - 2, 1, i++);
+                imageFilename = parts.join('.');
+              }
+              imageList[validatedSrc] = imageFilename;
+            }
+          }
+
+          if (options.hidePictureMdUrl) {
+            return true;
+          }
+        }
+
+        return options.linkStyle == 'stripLinks';
+      }
+      return false;
+    },
+    replacement: (content, node, tdopts) => {
+      const hasImage = node.querySelector('img');
+      if (hasImage && options.hidePictureMdUrl) {
+        return '';
+      }
+      if (hasImage) {
+        const img = node.querySelector('img');
+        const alt = img.alt || '';
+        const href = node.getAttribute('href');
+        const title = img.title || '';
+        const titlePart = title ? ' "' + title + '"' : '';
+        return '![' + alt + '](' + href + titlePart + ')';
+      }
+      if (options.linkStyle == 'stripLinks') {
+        return content;
+      }
+      var href = node.getAttribute('href');
+      var title = node.title ? ' "' + node.title + '"' : '';
+      if (!content || content.trim() === '') {
+        content = href;
+      }
+      return '[' + content + '](' + href + title + ')';
+    },
+  });
+
+  // 数学公式处理规则
+  turndownService.addRule('mathjax', {
+    filter(node, options) {
+      return article.math && article.math.hasOwnProperty(node.id);
+    },
+    replacement(content, node, options) {
+      const math = article.math[node.id];
+      if (!math) return content;
+
+      let tex = math.tex.trim().replaceAll('\xa0', '');
+
+      if (math.inline) {
+        tex = tex.replaceAll('\n', ' ');
+        return `$${tex}$`;
+      } else return `$$\n${tex}\n$$`;
+    },
+  });
+
+  // 代码块处理辅助函数
+  function repeat(character, count) {
+    return Array(count + 1).join(character);
+  }
+
+  function convertToFencedCodeBlock(node, options) {
+    if (typeof node.innerHTML === 'string') {
+      node.innerHTML = node.innerHTML.replaceAll('<br-keep></br-keep>', '<br>');
+    }
+
+    const langMatch = node.id?.match(/code-lang-(.+)/);
+    const language = langMatch?.length > 0 ? langMatch[1] : '';
+
+    const code = node.innerText || node.textContent || '';
+
+    const fenceChar = (options.fence || '```').charAt(0);
+    let fenceSize = 3;
+    const fenceInCodeRegex = new RegExp('^' + fenceChar + '{3,}', 'gm');
+
+    let match;
+    while ((match = fenceInCodeRegex.exec(code))) {
+      if (match[0].length >= fenceSize) {
+        fenceSize = match[0].length + 1;
+      }
+    }
+
+    const fence = repeat(fenceChar, fenceSize);
+
+    return '\n\n' + fence + language + '\n' + code.replace(/\n$/, '') + '\n' + fence + '\n\n';
+  }
+
+  // 代码块处理规则
+  turndownService.addRule('fencedCodeBlock', {
+    filter: function (node, options) {
+      return options.codeBlockStyle === 'fenced' && node.nodeName === 'PRE' && node.firstChild && node.firstChild.nodeName === 'CODE';
+    },
+    replacement: function (content, node, options) {
+      return convertToFencedCodeBlock(node.firstChild, options);
+    },
+  });
+
+  // 预格式化文本处理规则
+  turndownService.addRule('pre', {
+    filter: (node, tdopts) => {
+      return node.nodeName == 'PRE' && (!node.firstChild || node.firstChild.nodeName != 'CODE') && !node.querySelector('img');
+    },
+    replacement: (content, node, tdopts) => {
+      return convertToFencedCodeBlock(node, tdopts);
+    },
+  });
+
+  // 转换内容
+  let markdown = options.frontmatter + turndownService.turndown(content) + options.backmatter;
+
+  // 清理不可见字符
+  markdown = markdown.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f\u00ad\u061c\u200b-\u200f\u2028\u2029\ufeff\ufff9-\ufffc]/g, '');
+
+  return { markdown: markdown, imageList: imageList };
+}
+
+/**
+ * 将文章对象转换为Markdown
+ * @param {Object} article - 文章对象
+ * @param {boolean} downloadImages - 是否下载图片
+ * @returns {Promise<Object>} - 包含markdown和imageList的对象
+ */
+async function convertArticleToMarkdown(article, downloadImages = null) {
+  if (!article || typeof article !== 'object') {
+    throw new Error('无效的文章对象，类型：' + typeof article);
+  }
+
+  // 使用默认选项
+  let options = { ...defaultOptions };
+  console.log('使用选项:', options);
+
+  try {
+    if (downloadImages != null) {
+      options.downloadImages = downloadImages;
+    }
+
+    // 设置默认值
+    options.frontmatter = '';
+    options.backmatter = '';
+    options.imagePrefix = '';
+
+    // 处理模板
+    if (options.includeTemplate) {
+      try {
+        // 使用空字符串作为默认值
+        const frontmatter = typeof options.frontmatter === 'string' ? options.frontmatter : '';
+        const backmatter = typeof options.backmatter === 'string' ? options.backmatter : '';
+
+        options.frontmatter = frontmatter ? textReplace(frontmatter, article) + '\n' : '';
+        options.backmatter = backmatter ? '\n' + textReplace(backmatter, article) : '';
+      } catch (error) {
+        console.error('模板处理错误:', error);
+        options.frontmatter = '';
+        options.backmatter = '';
+      }
+    }
+
+    // 处理图片前缀
+    try {
+      if (options.imagePrefix && typeof options.imagePrefix === 'string') {
+        options.imagePrefix = textReplace(options.imagePrefix, article, options.disallowedChars)
+          .split('/')
+          .map((s) => generateValidFileName(s, options.disallowedChars))
+          .join('/');
+      }
+    } catch (error) {
+      console.error('图片前缀处理错误:', error);
+      options.imagePrefix = '';
+    }
+
+    console.log('转换前内容长度:', article.content.length);
+    const result = turndownProcessing(article.content, options, article);
+    console.log('转换后结果:', {
+      markdownLength: result.markdown.length,
+      imageCount: Object.keys(result.imageList).length,
     });
 
-    if (!results?.[0]?.result) {
-      throw new Error('未获取到有效结果');
-    }
-
-    const { dom, selection } = results[0].result;
-    console.log('DOM内容长度:', dom?.length);
-    console.log('选中内容长度:', selection?.length);
-
-    // 根据clipSelection选项决定是否只处理选中内容
-    const article = await getArticleFromDom(dom, options);
-
-    // 如果有选中内容且clipSelection为true，则只处理选中内容
-    if (selection && options.clipSelection) {
-      article.selectedContent = selection;
-      // 这里可以添加选中内容的处理逻辑
-    }
-
-    return article;
+    return result;
   } catch (error) {
-    console.error('剪切失败:', error);
+    console.error('Markdown处理失败:', error);
     throw error;
   }
 }
 
-// 导出主要函数
-export { clipSiteByUrl, getArticleFromDom, getSelectionAndDom, clipSite };
+/**
+ * 将网页内容转换为Markdown
+ * @param {string} url - 网页URL
+ * @param {Object} customOptions - 自定义选项
+ * @returns {Promise<Object>} - 包含markdown和imageList的对象
+ */
+async function clipSiteToMarkdown(url, customOptions = {}) {
+  try {
+    console.log('开始抓取并转换URL:', url);
+
+    // 获取文章对象
+    const article = await clipSiteByUrl(url, customOptions);
+
+    if (!article?.content) {
+      throw new Error('无法获取文章内容');
+    }
+
+    // 转换为Markdown
+    const { markdown, imageList } = await convertArticleToMarkdown(article, customOptions.downloadImages);
+
+    // 返回结果
+    return {
+      article,
+      markdown,
+      imageList,
+    };
+  } catch (error) {
+    console.error('抓取并转换失败:', error);
+    throw error;
+  }
+}
+
+// 导出新增的函数
+export { clipSiteByUrl, getArticleFromDom, getSelectionAndDom, fetchContent, clipSiteToMarkdown, convertArticleToMarkdown };
 
 // 如果直接运行此脚本，提供简单的使用示例
-if (typeof window !== 'undefined' && window.location.href !== 'about:blank') {
-  console.log('直接运行clipSite.js，正在解析当前页面...');
+if (!isNode && typeof window !== 'undefined' && window.location.href !== 'about:blank') {
+  console.log('直接在浏览器中运行clipSite.js，正在解析当前页面...');
   clipSiteByUrl(window.location.href)
     .then((article) => {
       console.log('解析结果:', article);
-      // 在控制台中显示结果
       console.log('文章标题:', article.title);
       console.log('文章内容长度:', article.content.length);
       console.log('文章摘要:', article.excerpt);
     })
     .catch((error) => {
       console.error('解析失败:', error);
+    });
+} else if (isNode && process.argv[1] === fileURLToPath(import.meta.url)) {
+  // 在Node.js环境中直接运行此文件时执行测试
+  const testUrl = process.argv[2] || 'https://github.com/FunAudioLLM/CosyVoice';
+  console.log('在Node.js环境中运行clipSite.js，测试URL:', testUrl);
+
+  clipSiteByUrl(testUrl, { saveToFile: true })
+    .then((article) => {
+      console.log('测试成功!');
+      console.log('文章标题:', article.title);
+      console.log('文章内容长度:', article.content.length);
+      console.log('文章摘要:', article.excerpt);
+    })
+    .catch((error) => {
+      console.error('测试失败:', error);
     });
 }
