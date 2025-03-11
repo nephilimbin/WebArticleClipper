@@ -6,69 +6,85 @@
 // 检测运行环境
 const isNode = typeof window === 'undefined' || !window.document;
 
+// 环境初始化标志，确保只初始化一次
+let environmentInitialized = false;
+
 // 根据环境导入依赖
 let Readability, https, fs, path, JSDOM, URL, fileURLToPath;
 
-if (isNode) {
-  // Node.js 环境
-  const module = await import('module');
-  const require = module.createRequire(import.meta.url);
+/**
+ * 初始化运行环境
+ * 确保只执行一次，避免在批量处理时重复初始化
+ */
+async function initializeEnvironment() {
+  if (environmentInitialized) return;
 
-  https = await import('https');
-  fs = await import('fs/promises');
-  path = await import('path');
-  JSDOM = (await import('jsdom')).JSDOM;
-  URL = global.URL;
-  fileURLToPath = (await import('url')).fileURLToPath;
+  if (isNode) {
+    // Node.js 环境
+    const module = await import('module');
+    const require = module.createRequire(import.meta.url);
 
-  // 设置 Node.js 环境
-  const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
-    url: 'https://example.com/',
-    referrer: 'https://example.com/',
-    contentType: 'text/html',
-  });
+    https = await import('https');
+    fs = await import('fs/promises');
+    path = await import('path');
+    JSDOM = (await import('jsdom')).JSDOM;
+    URL = global.URL;
+    fileURLToPath = (await import('url')).fileURLToPath;
 
-  global.DOMParser = dom.window.DOMParser;
-  global.document = dom.window.document;
+    // 设置 Node.js 环境
+    const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
+      url: 'https://example.com/',
+      referrer: 'https://example.com/',
+      contentType: 'text/html',
+    });
 
-  // 创建自定义 crypto 对象
-  if (!global.window) {
-    global.window = {
-      crypto: {
-        getRandomValues: (arr) => {
-          for (let i = 0; i < arr.length; i++) {
-            arr[i] = Math.floor(Math.random() * 1000000);
-          }
-          return arr;
+    global.DOMParser = dom.window.DOMParser;
+    global.document = dom.window.document;
+
+    // 创建自定义 crypto 对象
+    if (!global.window) {
+      global.window = {
+        crypto: {
+          getRandomValues: (arr) => {
+            for (let i = 0; i < arr.length; i++) {
+              arr[i] = Math.floor(Math.random() * 1000000);
+            }
+            return arr;
+          },
         },
-      },
-      location: { href: 'https://example.com/' },
-      navigator: {
-        userAgent: 'Mozilla/5.0 (Node.js)',
-      },
-    };
-  }
+        location: { href: 'https://example.com/' },
+        navigator: {
+          userAgent: 'Mozilla/5.0 (Node.js)',
+        },
+      };
+    }
 
-  // 尝试导入 Readability
-  try {
-    Readability = (await import('./Readability.js')).default;
-  } catch (e) {
-    console.warn('无法导入本地 Readability.js，尝试使用 @mozilla/readability');
+    // 尝试导入 Readability
     try {
-      Readability = require('@mozilla/readability').Readability;
-    } catch (e2) {
-      throw new Error('无法加载 Readability 库，请确保已安装依赖');
+      Readability = (await import('./Readability.js')).default;
+    } catch (e) {
+      console.warn('无法导入本地 Readability.js，尝试使用 @mozilla/readability');
+      try {
+        Readability = require('@mozilla/readability').Readability;
+      } catch (e2) {
+        throw new Error('无法加载 Readability 库，请确保已安装依赖');
+      }
+    }
+  } else {
+    // 浏览器环境
+    try {
+      Readability = (await import('./Readability.js')).default;
+    } catch (e) {
+      console.error('无法加载 Readability 库:', e);
+      throw e;
     }
   }
-} else {
-  // 浏览器环境
-  try {
-    Readability = (await import('./Readability.js')).default;
-  } catch (e) {
-    console.error('无法加载 Readability 库:', e);
-    throw e;
-  }
+
+  environmentInitialized = true;
 }
+
+// 确保在使用前初始化环境
+await initializeEnvironment();
 
 // 修改 TurndownService 导入部分
 let TurndownService, gfmPlugin;
@@ -119,6 +135,15 @@ const defaultOptions = {
   imageStyle: 'markdown',
   disallowedChars: '[]#^',
   hidePictureMdUrl: false,
+  saveToFile: true,
+  saveArticleJson: true,
+  saveArticleContent: false,
+  downloadImages: true,
+  headers: {
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+  },
 };
 
 /**
@@ -405,43 +430,6 @@ async function fetchContent(url, headers = {}) {
 
       req.end();
     });
-  } else {
-    // 浏览器环境使用 fetch
-    try {
-      const response = await fetch(url, {
-        headers: mergedHeaders,
-        // 添加超时设置
-        signal: AbortSignal.timeout(30000), // 30秒超时
-      });
-
-      // 处理403错误 - 需要Cookie
-      if (response.status === 403) {
-        if (needsCookie) {
-          // 创建一个空的HTML模板，包含错误信息
-          const errorHtml = createErrorHtml(url, '此网站需要Cookie才能访问');
-          console.warn('返回空内容模板，因为网站需要Cookie');
-          return errorHtml;
-        } else {
-          throw new Error(`HTTP错误: 403 - 访问被拒绝，可能需要登录或更完整的Cookie`);
-        }
-      }
-
-      // 处理其他错误
-      if (!response.ok) {
-        if (response.status === 404) {
-          const errorHtml = createErrorHtml(url, '页面不存在 (404)');
-          console.warn('返回空内容模板，因为页面不存在');
-          return errorHtml;
-        } else {
-          throw new Error(`HTTP错误: ${response.status}`);
-        }
-      }
-
-      return response.text();
-    } catch (error) {
-      console.error('Fetch错误:', error);
-      throw error;
-    }
   }
 }
 
@@ -522,15 +510,6 @@ async function clipSiteByUrl(url, customOptions = {}) {
     if (!article?.content) {
       throw new Error('无法解析文章内容');
     }
-
-    // 如果在Node环境中，保存结果到文件
-    if (isNode && options.saveToFile) {
-      const __dirname = path.dirname(fileURLToPath(import.meta.url));
-      await fs.writeFile(path.join(__dirname, 'article-result.json'), JSON.stringify(article, null, 2));
-      await fs.writeFile(path.join(__dirname, 'article-content.html'), article.content);
-      console.log('已保存结果到文件');
-    }
-
     console.log('成功解析文章:', article.title);
     return article;
   } catch (error) {
@@ -1023,28 +1002,65 @@ async function convertArticleToMarkdown(article, downloadImages = null) {
  * 将网页内容转换为Markdown
  * @param {string} url - 网页URL
  * @param {Object} customOptions - 自定义选项
- * @returns {Promise<Object>} - 包含markdown和imageList的对象
+ * @returns {Promise<Object>} - 包含article、markdown和imageList的对象
  */
 async function clipSiteToMarkdown(url, customOptions = {}) {
   try {
     console.log('开始抓取并转换URL:', url);
 
+    // 合并默认选项和自定义选项
+    const options = { ...defaultOptions, ...customOptions };
+
     // 获取文章对象
-    const article = await clipSiteByUrl(url, customOptions);
+    const article = await clipSiteByUrl(url, options);
 
     if (!article?.content) {
       throw new Error('无法获取文章内容');
     }
 
     // 转换为Markdown
-    const { markdown, imageList } = await convertArticleToMarkdown(article, customOptions.downloadImages);
+    const { markdown, imageList } = await convertArticleToMarkdown(article, options.downloadImages);
+
+    // 将markdown和imageList添加到article对象中
+    article.markdown = markdown;
+    article.imageList = imageList;
+    article.url = url;
+
+    // 如果需要保存到文件
+    if (options.saveToFile) {
+      try {
+        // 使用let而不是const，因为后面可能会修改这个变量
+        let filename = '';
+
+        // 添加唯一id
+        if (options.id) {
+          article.id = options.id;
+          filename = `article-${article.id}`;
+        } else {
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          filename = `article-${timestamp}`;
+        }
+
+        // 获取当前目录
+        const __dirname = isNode ? path.dirname(fileURLToPath(import.meta.url)) : '.';
+
+        // 保存Markdown到文件
+        await fs.writeFile(path.join(__dirname, `${filename}.md`), markdown);
+        console.log(`已保存Markdown到文件: ${filename}.md`);
+
+        // 可选：保存完整的文章对象
+        if (options.saveArticleJson) {
+          await fs.writeFile(path.join(__dirname, `${filename}.json`), JSON.stringify(article, null, 2));
+          console.log(`已保存完整文章对象到文件: ${filename}.json`);
+        }
+      } catch (error) {
+        console.error('保存文件失败:', error);
+        // 继续执行，不中断流程
+      }
+    }
 
     // 返回结果
-    return {
-      article,
-      markdown,
-      imageList,
-    };
+    return article;
   } catch (error) {
     console.error('抓取并转换失败:', error);
     throw error;
@@ -1054,32 +1070,7 @@ async function clipSiteToMarkdown(url, customOptions = {}) {
 // 导出新增的函数
 export { clipSiteByUrl, getArticleFromDom, getSelectionAndDom, fetchContent, clipSiteToMarkdown, convertArticleToMarkdown };
 
-// 如果直接运行此脚本，提供简单的使用示例
-if (!isNode && typeof window !== 'undefined' && window.location.href !== 'about:blank') {
-  console.log('直接在浏览器中运行clipSite.js，正在解析当前页面...');
-  clipSiteByUrl(window.location.href)
-    .then((article) => {
-      console.log('解析结果:', article);
-      console.log('文章标题:', article.title);
-      console.log('文章内容长度:', article.content.length);
-      console.log('文章摘要:', article.excerpt);
-    })
-    .catch((error) => {
-      console.error('解析失败:', error);
-    });
-} else if (isNode && process.argv[1] === fileURLToPath(import.meta.url)) {
-  // 在Node.js环境中直接运行此文件时执行测试
-  const testUrl = process.argv[2] || 'https://github.com/FunAudioLLM/CosyVoice';
-  console.log('在Node.js环境中运行clipSite.js，测试URL:', testUrl);
-
-  clipSiteByUrl(testUrl, { saveToFile: true })
-    .then((article) => {
-      console.log('测试成功!');
-      console.log('文章标题:', article.title);
-      console.log('文章内容长度:', article.content.length);
-      console.log('文章摘要:', article.excerpt);
-    })
-    .catch((error) => {
-      console.error('测试失败:', error);
-    });
-}
+const url = 'https://blog.csdn.net/ken2232/article/details/136071216';
+const article = await clipSiteToMarkdown(url);
+console.log('抓取成功!');
+console.log('文章标题:', article.title);
