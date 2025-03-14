@@ -1,0 +1,85 @@
+// 网页内容抓取和解析工具配置文件
+// 支持JSON with Comments (JSONC)格式，可以添加注释
+{
+  // 是否启用MathJax公式渲染
+  "mathJaxRendering": true,
+
+  // 是否自动清理HTML内容
+  "autoSanitize": true,
+
+  // 是否仅抓取选中的内容
+  "clipSelection": true,
+
+  // 是否保留HTML元素的class属性
+  "keepClasses": false,
+
+  // Markdown标题样式: "atx"使用#号, "setext"使用下划线
+  "headingStyle": "atx",
+
+  // 水平分割线样式
+  "hr": "___",
+
+  // 无序列表标记符号
+  "bulletListMarker": "-",
+
+  // 代码块样式: "fenced"使用```包围, "indented"使用缩进
+  "codeBlockStyle": "fenced",
+
+  // 代码块围栏符号
+  "fence": "```",
+
+  // 斜体分隔符
+  "emDelimiter": "_",
+
+  // 粗体分隔符
+  "strongDelimiter": "**",
+
+  // 链接样式: "inlined"内联式, "referenced"引用式, "stripLinks"移除链接
+  "linkStyle": "inlined",
+
+  // 图片样式: "markdown"使用![](url)格式
+  "imageStyle": "markdown",
+
+  // 文件名中不允许的字符
+  "disallowedChars": "[]#^",
+
+  // 是否在Markdown中隐藏图片URL
+  "hidePictureMdUrl": false,
+
+  // 是否将结果保存到文件
+  "saveToFile": true,
+
+  // 是否保存完整的文章对象的JSON信息
+  "saveArticleJson": true,
+
+  // 是否保存原始HTML内容
+  "saveArticleContent": false,
+
+  // 是否保存图片链接信息
+  "saveImageLinks": true,
+
+  // 是否包含模板
+  "includeTemplate": false,
+
+  // 前置内容模板
+  "frontmatter": "",
+
+  // 后置内容模板
+  "backmatter": "",
+
+  // 图片前缀路径
+  "imagePrefix": "",
+
+  // 是否转义Markdown特殊字符
+  "turndownEscape": true,
+
+  // 日志级别: "debug", "info", "warn", "error"
+  "logLevel": "info",
+
+  // HTTP请求头
+  "headers": {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8"
+  }
+}
