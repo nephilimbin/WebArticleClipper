@@ -1,0 +1,130 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+Cursor Rules and Prompts
+1. Basic Conversion Rules
+Rule 1: Convert JavaScript syntax to Python syntax while maintaining the same logic and functionality.
+Rule 2: Preserve the original JavaScript file content. Do not modify it.
+Rule 3: Use Pythonic constructs (e.g., for loops instead of forEach, if __name__ == "__main__" for main execution).
+Rule 4: Handle JavaScript-specific features (e.g., let, const, =>) appropriately in Python (e.g., let/const → variable, => → lambda).
+Rule 5: Ensure proper indentation and Python coding standards (PEP 8).
+2. Conversion Process
+Step 1: Analyze the JavaScript file to understand its structure and logic.
+Step 2: Write equivalent Python code for each JavaScript function or block.
+Step 3: Verify that the Python code produces the same output as the JavaScript code.
+Step 4: Generate a markdown file summarizing the conversion.
+3. Example Prompt for Conversion
+plaintext
+Convert the following JavaScript code to Python while maintaining the same functionality. Do not modify the original JavaScript file. Ensure the Python code adheres to PEP 8 standards. After conversion, generate a markdown file summarizing the changes.
+
+**JavaScript Code:**
+```javascript
+function add(a, b) {
+    return a + b;
+}
+
+const result = add(2, 3);
+console.log(result);
+Python Code:
+
+python
+def add(a, b):
+    return a + b
+
+if __name__ == "__main__":
+    result = add(2, 3)
+    print(result)
+Markdown Summary:
+
+markdown
+# JavaScript to Python Conversion Summary
+
+## Original JavaScript Code
+```javascript
+function add(a, b) {
+    return a + b;
+}
+
+const result = add(2, 3);
+console.log(result);
+Equivalent Python Code
+python
+def add(a, b):
+    return a + b
+
+if __name__ == "__main__":
+    result = add(2, 3)
+    print(result)
+Notes
+The function keyword in JavaScript was replaced with def in Python.
+The const keyword was replaced with a standard variable assignment in Python.
+The console.log statement was replaced with print in Python.
+4. Full Prompt File
+Save the following as prompt.txt for future use:
+
+plaintext
+**Objective**: Convert JavaScript code to Python while maintaining the same functionality. Do not modify the original JavaScript file. Generate a markdown file summarizing the conversion.
+
+**Steps**:
+1. Analyze the JavaScript file to understand its structure and logic.
+2. Write equivalent Python code for each JavaScript function or block.
+3. Verify that the Python code produces the same output as the JavaScript code.
+4. Generate a markdown file summarizing the conversion.
+
+**Rules**:
+- Convert JavaScript syntax to Python syntax while maintaining the same logic.
+- Preserve the original JavaScript file content.
+- Use Pythonic constructs (e.g., `for` loops instead of `forEach`).
+- Handle JavaScript-specific features appropriately (e.g., `let`/`const` → `variable`, `=>` → `lambda`).
+- Ensure proper indentation and Python coding standards (PEP 8).
+
+**Example**:
+```plaintext
+**JavaScript Code:**
+```javascript
+function add(a, b) {
+    return a + b;
+}
+
+const result = add(2, 3);
+console.log(result);
+Python Code:
+
+python
+def add(a, b):
+    return a + b
+
+if __name__ == "__main__":
+    result = add(2, 3)
+    print(result)
+Markdown Summary:
+
+markdown
+# JavaScript to Python Conversion Summary
+
+## Original JavaScript Code
+```javascript
+function add(a, b) {
+    return a + b;
+}
+
+const result = add(2, 3);
+console.log(result);
+Equivalent Python Code
+python
+def add(a, b):
+    return a + b
+
+if __name__ == "__main__":
+    result = add(2, 3)
+    print(result)
+Notes
+The function keyword in JavaScript was replaced with def in Python.
+The const keyword was replaced with a standard variable assignment in Python.
+The console.log statement was replaced with print in Python.
+Usage:
+
+Provide the JavaScript code you want to convert.
+Follow the rules and steps to generate the Python code and markdown summary.

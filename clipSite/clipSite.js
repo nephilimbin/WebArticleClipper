@@ -1195,7 +1195,9 @@ function processImageUrl(src, baseURI, options, imageList) {
 // 导出新增的函数
 export { clipSiteByUrl, getArticleFromDom, getSelectionAndDom, fetchContent, clipSiteToMarkdown, convertArticleToMarkdown };
 
-const url = 'https://blog.csdn.net/ken2232/article/details/136071216';
+// const url = 'https://blog.csdn.net/ken2232/article/details/136071216';
+// const url = 'https://github.com/Open-LLM-VTuber/Open-LLM-VTuber?tab=readme-ov-file';
+const url = 'https://www.u-tools.cn/docs/developer/information/plugin-json.html';
 const article = await clipSiteToMarkdown(url);
 logger.info('抓取成功!');
 logger.info('文章标题:', article.title);
